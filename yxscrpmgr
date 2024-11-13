@@ -1,0 +1,17 @@
+#!/bin/bash
+
+function cmd_install()
+{
+}
+
+
+sub_cmd=$1
+shift
+if [[ -z ${sub_cmd} ]]; then
+  echo_fatal "Param error. use '${CMD} --help' to show document"
+fi
+
+
+if [[ ${sub_cmd} == 'install' ]]; then
+  cmd_install $@
+fi
