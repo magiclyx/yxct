@@ -1,8 +1,946 @@
 #!/bin/bash
 
+CMD=$(basename $0)
+
+BIN_PATH='/bin'
+SBIN_PATH='/sbin'
+USR_BIN_PATH='/usr/bin'
+USR_SBIN_PATH='/usr/sbin'
+USR_LOCAL_BIN_PATH='/usr/local/bin'
+USR_LOCAL_SBIN_PATH='/usr/local/sbin'
+DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
+
+
+###########################################################
+# Ignore file list in script folder
+###########################################################
+
+IGNORE_LIST=(
+	# git
+	"\.gitignore"
+	"\.git"
+	"\.gitkeep"
+	
+	################
+	#vim
+	# # vim->swap
+	"[._]*\.s[a-v][a-z]"
+	"[._]*.sw[a-p]"
+	"[._]s[a-rt-v][a-z]"
+	"[._]ss[a-gi-z]"
+	"[._]sw[a-p]"
+	# # vim->session
+	"Session"
+	"Sessionx"
+	# # vim->Temporary
+	"\.netrwhist"
+	"\*~"
+	# # vim->Auto-generated tag files
+	"tags"
+	# # vim->Persistent undo
+	"[._]*.un~"
+	
+	################
+	#vscode
+	"\.vscode"
+	# # vscode->Local History for Visual Studio Code
+	"\.history"
+	# # vscode->Built Visual Studio Code Extensions
+	".*\.vsix"
+	# # vscode->VisualStudioCode Patch
+	"\.history"
+	"\.ionide"
+	
+	# custom
+	"README(\.md)?"
+	"test(\.sh)?"
+	"sample(\.sh)?"
+)
+
+
+
+###########################################################
+# YXLib
+###########################################################
+
+function echo_fatal()
+{
+  echo $@
+  exit 1
+}
+
+function echo_cmd()
+{
+  echo "$*"
+  $@
+}
+
+function echo_err()
+{
+  echo "$*"
+  $@
+}
+
+###########################################################
+# Utility
+###########################################################
+
+
+function is_in_reg_list()
+{
+	local name=$1
+	shift
+	local reg_list=($@)
+	
+	if [ "${reg_list}" ]; then
+		for reg in "${reg_list[@]}"; do
+			reg=$(echo "${reg}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+			if echo "${name}" | grep -Eqi "${reg}"; then
+				return 0
+			fi
+		done
+	fi
+	
+	return 1
+}
+
+
+# 如果目录下只有一个文件，则返回
+# 1. 会忽略 IGNORE_LIST 列表里正则对应的文件
+# 2. 会忽略 --ignore 参数中正则列表对应的文件
+# usage: file_name_if_single <目录>
+# usage: file_name_if_single <目录> --ignore '正则1' '正则2' ....
+function file_name_if_single()
+{
+	local script_path=$1
+  local -a ignore_reg_list
+  if [ $2 == '--ignore' ]; then
+    shift # ignore $1
+    shift # ignore --ignore
+    ignore_reg_list=($@)
+  fi
+
+	
+	local -a valid_files
+	# local SAVEIFS=$IFS
+	for file in "${script_path%/}"/*; do
+		if [[ ${file} == ${script_path}/\* ]]; then
+			continue
+		fi
+
+		local filename=$(basename  "${file}")		
+
+    # 文件名在忽略列表里
+    if is_in_reg_list "${filename}" ${ignore_reg_list[@]}; then
+      continue
+		fi
+
+		if ! is_in_reg_list "${filename}" ${IGNORE_LIST[@]}; then
+			valid_files=(${valid_files[@]} "${filename}")
+		fi
+		
+	done
+	# IFS=${SAVEIFS}
+	
+	if [[ "${#valid_files[@]}" == 1 ]]; then
+		echo "${valid_files[@]}"
+		return 0
+	else
+		return 1
+	fi
+}
+
+function search_file_by_reg_list()
+{
+  local path=$1
+  shift
+  local reg_list=($@)
+
+  # local SAVEIFS=$IFS
+
+
+  # search regular files
+	for file in "${script_path%/}"/*; do
+		if [[ ${file} == ${script_path}/\* ]]; then
+			continue
+		fi
+
+    local filename=$(basename "${file}")		
+    if is_in_reg_list "${filename}" ${reg_list[@]}; then
+      echo "${filename}"
+      return 0
+		fi
+  done
+
+  # search regular invisiable files 
+  for file in "${script_path%/}"/.*; do
+		if [[ ${file} == ${script_path%/}/\* ]]; then
+			continue
+		fi
+
+    local filename=$(basename "${file}")		
+    if [[ ${filename} == '.' ]] || [[ ${filename} == '..' ]]; then
+      continue
+    fi
+
+    if is_in_reg_list "${filename}" ${reg_list[@]}; then
+      echo "${filename}"
+      return 0
+		fi
+  done
+
+
+  # IFS=${SAVEIFS}
+
+  return 1
+}
+
+
+
+# function is_same_file()
+# {
+#   local file1=$1
+#   local file2=$2
+
+#   local file1_hash=
+#   if [ -r "${file1}" ]; then
+#     file1_hash=$(shasum -a 256 "${file1}")
+#   fi
+
+#   local file2_hash=
+#   if [ -r ${file2} ]; then
+#     file2_hash=$(shasum -a 256 "${file2}")
+#   fi
+
+#   if [[ -f "${file1}" ]] && [[ -f "${file2}" ]]; then
+#     if [ "${file1}" -eq "${file2}" ]; then
+#       return 0
+#     fi
+#   fi
+
+#   return 1
+# }
+
+
+function check_file_hash()
+{
+  local file=$1
+  local hash=$2
+
+  if ! [ -r "${file}" ]; then
+    echo_fatal "Can not read the file:${file}"
+  fi
+
+  if [ -z "${hash}" ]; then
+    echo_fatal "hash is empty."
+  fi
+
+  local file_hash=$(shasum -a 256 "${file}" | awk '{print $1}')
+  if [ "${file_hash}" == "${hash}" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function strcontains()
+{
+	local str="$1"
+	local arr_str="$2"
+	local ignorecase=false
+	shift 
+	shift 
+	
+	while [ $# -gt 0 ]; do
+		case $1 in
+			
+			--ignorecase )
+				ignorecase=true
+			;;
+			
+			*)
+				echo "Invalid optional ${1}"
+			;;
+		esac
+		shift
+	done
+
+	
+	if ${ignorecase}; then
+		for e in $(echo "${arr_str}"); do
+			[[ "${e^^}" == "${str^^}" ]] && return 0
+		done
+	else
+		for e in $(echo "${arr_str}"); do
+      echo "compare between ${e} and ${str}"
+			[[ "${e}" == "${str}" ]] && return 0
+		done
+	fi
+	
+	return 1
+}
+
+# 执行卸载脚本
+function run_setup_script()
+{
+  local script_path=
+  local additional=
+
+  local option=$1
+  if strcontains "${option}" 'install' --ignorecase; then
+    option="install"
+    shift
+  elif strcontains "${option}" 'uninstall' --ignorecase; then
+    option="uninstall"
+    shift
+  else
+    echo_fatal "option is empty."
+  fi
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --path )
+        shift
+        script_path=$1
+      ;;
+
+      *)
+        additional="${additional} $1"
+    esac
+    shift
+  done
+
+
+  if ! [ -f "${script_path}" ]; then
+    echo_fatal "setup script not exist :${script_path}"
+  fi
+
+  pushd $(dirname "${script_path}") > /dev/null
+  eval "${script_path} ${option} ${additional}"
+  result="$?"
+  popd > /dev/null
+
+  if [[ "${result}" != '0' ]]; then
+    echo_fatal "Failed to run setup script: ${script_path}"
+  fi
+
+  return ${result}
+}
+
+# 根据命令名直接卸载可执行文件
+function remove_command()
+{
+  local all=false
+  local command=
+  local hash=
+
+  while [ $# -gt 0 ]; do
+	  case $1 in
+      --command )
+        shift
+        command=$1
+      ;; 
+
+      --hash )
+        shift
+        hash=$1
+      ;; 
+
+      --all )
+        all=true
+      ;; 
+    esac
+    shift
+  done
+
+  if [ -n "${command}" ]; then
+    echo_fatal "Command is empty !"
+  fi
+
+  while true; do
+    local finded_exec_path=$(which "${command}")
+    if [ -z "${finded_exec_path}" ]; then
+      break
+    fi
+
+    if ! [ -f ${finded_exec_path} ]; then
+     echo_fatal "Can not find a command named:${filename}"
+    fi
+
+    if [ -n "${hash}" ]; then
+      if ! check_file_hash "${finded_exec_path}" "${hash}"; then
+        break
+      fi
+    fi
+
+    # 强制删除命令
+    if ! rm -f "${finded_exec_path}"; then
+      echo_fatal "Fail to uninstall '${command}'"
+    fi
+
+    if ! ${all}; then
+      break
+    fi
+
+  done
+}
+
+# 根据一个可执行文件，查找安装的同名文件,并卸载
+function remove_same_file()
+{
+    local file_path=
+    local bin_path=
+    local command=
+    local all=false
+
+    while [ $# -gt 0 ]; do
+		  case $1 in
+        --path )
+          shift
+          file_path=$1
+        ;;
+
+        --bin-path )
+          shift
+          bin_path=$1
+        ;;
+
+        --command )
+          shift
+          command=$1
+        ;; 
+
+        --all )
+          all=true
+        ;; 
+      esac
+      shift
+    done
+
+    if ! [ -f "${file_path}" ]; then
+      echo_fatal "File not exist :${file_path}"
+    fi
+    local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}' )
+    if [ -n "${file_hash}" ]; then
+      echo_fatal "Failed to calculate the hash value of the file:${file_path}"
+    fi
+
+    local filename=$(basename "${file_path}")
+    # 如果提供了命令名，脚本名字和命令名必须相同
+    if [ -n "${command}" ] && [ "${filename}" != "${command}" ]; then
+      echo_fatal "Filename name and command not matched."
+    fi
+
+    local finded_exec_path=
+    if [ -n "${bin_path}" ]; then
+
+      finded_exec_path="${bin_path}/${filename}"
+      if ! [ -f ${finded_exec_path} ]; then
+        echo_fatal "Can not find a command named:${filename}"
+      fi
+
+      # 要删除的文件必须和传入的文件相同
+      if ! check_file_hash "${finded_exec_path}" "${file_hash}"; then
+        echo_fatal "Script and execute file not matched:(${execute_file_path})"
+      fi
+
+      # 强制删除命令
+      if ! rm -f "${execute_file_path}"; then
+        echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
+      fi
+   else
+     local params=''
+     if "${all}"; then
+       arams="${params} --all"
+     fi
+
+     remove_command --command "${filename}" --hash "${file_hash}" ${params}
+   fi
+}
+
+
+function install_file()
+{
+  local file_path=
+  local bin_path=
+  local command=
+  local force=false
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --file )
+        shift
+        file_path=$1
+      ;;
+
+      --bin-path )
+        shift
+        bin_path=$1
+      ;;
+
+      --command )
+        command=true
+      ;;
+
+      --force )
+        force=true
+      ;;
+    esac
+    shift
+  done
+
+  if [ -z "${file_path}" ]; then
+    echo_fatal "file path is empty."
+  fi
+
+  if ! [ -r "${file_path}" ]; then
+    echo_fatal "Can not read file:${file_path}"
+  fi
+
+
+  if [ -z "${bin_path}" ]; then
+    bin_path="${DEFAULT_BIN_PATH}"
+  fi
+
+  if [ -z "${command}" ]; then
+    command=$(basename "${file_path}")
+  fi
+
+  local dest_path="${bin_path}/${command}"
+
+  # 在没有指定--force时，如果目标文件已存在，且和要考呗的文件不同，则fatal
+  if [ -f "${dest_path}" ] && ! ${force}; then
+    local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}')
+    if ! check_file_hash "${dest_path}" "${file_hash}"; then
+      echo_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file"
+    fi
+  fi
+
+
+  # 之前已经验证过 force了，这里仍然判断force参数， 避免多脚本同时执行
+  local force_params=''
+  if ${force}; then
+    force_params='--force'
+  fi
+
+  cp ${force_params} "${file_path}" "${bin_path}/${command}"
+}
+
+
+# 根据安装脚本路径，卸载可执行文件
+function uninstall_by_script_path()
+{
+  local script_path=
+  local additional=
+  local all=false
+  local no_installer=false
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --path )
+        shift
+        script_path=$1
+      ;;
+
+      --all )
+        all=true
+      ;;
+
+      --no-installer )
+        no_installer=true
+      ;;
+
+      *)
+        additional="${additional} $1"
+    esac
+    shift
+  done
+
+  if [ -z "${script_path}" ]; then
+    echo_fatal "Script path is empty."
+  fi
+
+  local all_params=''
+  if "${all}"; then
+    all_params=' -all'
+  fi
+
+  if [ -f "${script_path}" ]; then
+  # 如果脚本路径是一个文件
+    if echo "${filename}" | grep -Eq "\.${CMD}.install(\.sh|\.py|\.rb)?"; then
+    # 如果文件是一个安装脚本, 直接调用脚本
+      run_setup_script uninstall --path "${script_path}" ${additional}
+    elif ${no_installer}; then
+      # 如果文件不上是安装脚本，但指定了--no-installer参数，尝试查找文件相同的命令，并删除
+      remove_same_file --path "${script_path}" ${all_params} ${additional}
+    else
+      # 如果文件不上是安装脚本，未指定了--no-installer参数，报错
+      echo_fatal "Script path is a file, but not an uninstall script. Use '--no-installer' try to delete command with the same name directly."
+    fi
+  elif [ -d "${script_path}" ]; then
+  # 如果脚本路径是一个目录
+    local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "('\.${CMD}.install(\.sh|\.py|\.rb)?')")
+    if [[ -n "${uninstall_script_filename}" ]]; then
+    # 如果目录中找到安装脚本, 直接掉用那个安装脚本
+      run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${additional}
+    elif ${no_installer}; then
+    # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
+      local singl_app_name=$(file_name_if_single "${script_path}")
+      if [ -n "${singl_app_name}" ]; then
+        remove_same_file --path "${script_path}/${singl_app_name}" ${all_params} ${additional}
+      else
+        # 如果不是单脚本APP, 不知道如何安装
+        echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
+      fi
+    else
+    # 如果文件不是安装脚本，未指定了--no-installer参数，报错
+      echo_fatal "Can not find a uninstall script. Use '--no-installer' try to delete command with the same file directly."
+    fi
+  else
+  # 既不是文件，也不是目录，无效script_path
+    echo_fatal "Invalid script path:${script_path}"
+  fi
+}
+
+
+# 根据可执行文件路径，卸载这个可执行文件
+function uninstall_by_bin_path()
+{
+  local bin_path=
+  local command=
+  local additional=
+  
+  # 这个函数被调用，说明script_path 必定为空，之前判断过了
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --path )
+        shift
+        bin_path=$1
+      ;;
+
+      --command )
+        shift
+        command=$1
+      ;; 
+
+      *)
+        echo_fatal "Invalid params:${$1}"
+    esac
+    shift
+  done
+
+  if [ -f "${bin_path}" ]; then
+    if [ -n "${command}" ]; then
+      local filename=$(basename "${file_path}")
+      if [ "${filename}" != "${command}" ]; then
+        echo_fatal "Filename name and command not matched."
+      fi
+    fi
+
+    # 强制删除命令
+    if ! rm -f "${bin_path}"; then
+      echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
+    fi
+  elif [ -d "${bin_path}" ]; then
+
+    if [ -z "${command}" ]; then
+      echo_fatal "Can not find any script in path ${bin_path}"
+    fi
+
+    local execute_file_path="${bin_path}/${command}"
+    if ! [ -f "${execute_file_path}" ]; then
+      echo_file "Script does not exist:${execute_file_path}"
+    fi
+    # 强制删除命令
+    if ! rm -f "${execute_file_path}"; then
+      echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
+    fi
+  else
+    # 既不是文件，也不是目录，无效bin_path
+    echo_fatal "Invalid path:${bin_path}"
+  fi
+}
+
+###########################################################
+# Command
+###########################################################
+
+
 function cmd_install()
 {
+
+  local show_help=false
+  local script_path=
+  local bin_path=
+  local command=
+  local -a ignore_reg_list=
+  local no_installer=false
+  local force=false
+
+  local is_in_ignore=false
+  while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
+		case $1 in
+
+      --script-path )
+        shift
+        script_path=$1
+      ;;
+
+      --command )
+        shift
+        command=$1
+      ;;
+
+      --force )
+        force=true
+      ;;
+
+      --ignore )
+        is_in_ignore=true
+        force=true
+      ;;
+
+      --no-installer )
+        no_installer=true
+      ;;
+
+      --bin )
+        bin_path="${BIN_PATH}"
+      ;;
+
+      --sbin )
+        bin_path="${SBIN_PATH}"
+      ;;
+
+      --usr-bin )
+        bin_path="${USR_BIN_PATH}"
+      ;;
+
+      --usr-sbin )
+        bin_path="${USR_SBIN_PATH}"
+      ;;
+
+      --usr-local-bin )
+        bin_path="${USR_LOCAL_BIN_PATH}"
+      ;;
+
+      --usr-local-sbin )
+        bin_path="${USR_LOCAL_SBIN_PATH}"
+      ;;
+
+      --custom-dest )
+        shift
+        bin_path=$1
+      ;;
+
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        if ${is_in_ignore}; then
+          ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
+        else
+          echo_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
+        fi
+      ;;
+    esac
+    shift
+  done
+
+
+  if [ -z "${script_path}" ]; then
+    echo_fatal "Script path is empty. Use --help to show more information."
+  fi
+
+  local params=''
+  if [ -n "${bin_path}" ]; then
+    params="${params} --bin-path ${bin_path}"
+  fi
+  if [ -n "${command}" ]; then
+    params="${params} --command ${command}"
+  fi
+
+
+  if [ -f "${script_path}" ]; then
+  # 如果脚本路径是一个文件
+    if echo $(basename ${script_path}) | grep -Eq "\.${CMD}.install(\.sh|\.py|\.rb)?"; then
+    # 如果文件是一个安装脚本, 直接调用脚本
+      run_setup_script install --path "${script_path}" ${params}
+    elif ${no_installer}; then
+    # 如果没有找到安装脚本，但使用了--no-installer参数, 则直接安装文件
+      local force_params=''
+      if ${force}; then
+        force_params='--force'
+      fi
+      install_file --file "${script_path}" "${force_params}" ${params}
+    else
+      echo_fatal "Can not find a install script. Use '--no-installer' try to install from a script file directly"
+    fi
+  elif [ -d "${script_path}" ]; then
+    # 如果脚本路径是一个目录
+    local script_file_name=$(basename "${script_path}")
+    local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.install(\.sh|\.py|\.rb)?")
+    if [ -n "${install_script_filename}" ]; then
+      # 如果目录中找到安装脚本, 直接掉用那个安装脚本
+      run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
+    elif ${no_installer}; then
+      # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
+      local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+      if [ -n "${singl_app_name}" ]; then
+        local force_params=''
+        if ${force}; then
+          force_params='--force'
+        fi
+        install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+      else
+        # 如果不是单脚本APP, 不知道如何安装
+        echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+      fi
+    else
+    # 如果文件是安装脚本，未指定了--no-installer参数，报错
+      echo_fatal "Can not find a install script. Use '--no-installer' try to install file as conmand directly."
+    fi
+  else
+  # 既不是文件，也不是目录，无效script_path
+    echo_fatal "Invalid script path:${script_path}"
+  fi
+
+
+
+
+  # # test install script file
+  # local install_script="${script_path}/install.sh"
+  # if ! [ -f "${install_script}" ]; then
+  #   install_script="${script_path}/install"
+  #   if ! [ -f "${install_script}" ]; then
+  #     echo_fatal "Can not find ainstall script in path :${script_path}"
+  #   fi
+  # fi
+
+  # # export SCRIPT_PATH="${script_path}"
+  # pushd "${script_path}" > /dev/null
+  # eval "${install_script} install --script-path ${script_path} --bin-path ${install_path}"
+  # popd > /dev/null
 }
+
+
+function cmd_uninstall()
+{
+  local command=
+  local bin_path=
+  local no_installer=false
+  local all=false
+
+  while [ $# -gt 0 ]; do
+		case $1 in
+
+      --command )
+        shift
+        command=$1
+      ;;
+
+      --script-path )
+        shift
+        script_path=$1
+      ;;
+
+      --no-installer )
+        no_installer=true
+      ;;
+
+      --all )
+        all=true
+      ;;
+
+      --bin )
+        bin_path="${BIN_PATH}"
+      ;;
+
+      --sbin )
+        bin_path="${SBIN_PATH}"
+      ;;
+
+      --usr-bin )
+        bin_path="${USR_BIN_PATH}"
+      ;;
+
+      --usr-sbin )
+        bin_path="${USR_SBIN_PATH}"
+      ;;
+
+      --usr-local-bin )
+        bin_path="${USR_LOCAL_BIN_PATH}"
+      ;;
+
+      --usr-local-sbin )
+        bin_path="${USR_LOCAL_SBIN_PATH}"
+      ;;
+
+      --custom-dest )
+        shift
+        bin_path=$1
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        echo_fatal "Unknown params $1. Use '${CMD} --help' to show help information"
+      ;;
+    esac
+    shift
+  done
+
+
+  if [ -n "${script_path}" ]; then
+    # 如果提供了脚本路径
+
+    local params=''
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
+    if [ -n "${bin_path}" ]; then 
+      params="${params} --bin-path ${bin_path}"
+    fi
+    if ${all}; then
+      params="${params} --all"
+    fi
+
+    uninstall_by_script_path --path "${script_path}" --no-installer ${no_installer} ${params}
+  elif [ -n "${bin_path}" ]; then
+    # 如果没提供脚本路径， 但bin_path不为空
+
+    local params=''
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
+
+    uninstall_by_bin_path --path "${bin_path}"
+  elif [ -n "${command}" ]; then
+    # 如果没提供脚本路径和bin_path, 但提供了command
+
+    local params=''
+    if ${all}; then
+      params="${params} --all"
+    fi
+
+    remove_command --command "${command}" ${params}
+  else
+    echo_fatal "Invalid params, use --help to show more information."
+  fi
+}
+
+
+# PATH=/sbin:/bin
 
 
 sub_cmd=$1
@@ -12,6 +950,12 @@ if [[ -z ${sub_cmd} ]]; then
 fi
 
 
-if [[ ${sub_cmd} == 'install' ]]; then
+if [[ "${sub_cmd}" == 'install' ]]; then
   cmd_install $@
+elif [[ "${sub_cmd}" == 'uninstall' ]]; then
+  cmd_uninstall $@
+elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
+  echo "help!"
+else
+  echo_fatal "Unknown sub command:'${sub_cmd}'."
 fi
