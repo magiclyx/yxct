@@ -431,12 +431,17 @@ function remove_same_file()
       echo_fatal "Filename name and command not matched."
     fi
 
-    local finded_exec_path=
     if [ -n "${bin_path}" ]; then
 
-      finded_exec_path="${bin_path}/${filename}"
+      local finded_exec_path=
+      if [ -n "${command}" ]; then
+        finded_exec_path="${bin_path}/${command}"
+      else
+        finded_exec_path="${bin_path}/${filename}"
+      fi
+
       if ! [ -f ${finded_exec_path} ]; then
-        echo_fatal "Can not find a command named:${filename}"
+        echo_fatal "Can not find a command at:${finded_exec_path}"
       fi
 
       # 要删除的文件必须和传入的文件相同
@@ -692,10 +697,15 @@ function cmd_install()
   local show_help=false
   local script_path=
   local bin_path=
-  local command=
   local -a ignore_reg_list=
   local no_installer=false
   local force=false
+
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi
 
   local is_in_ignore=false
   while [ $# -gt 0 ]; do
@@ -709,11 +719,6 @@ function cmd_install()
       --script-path )
         shift
         script_path=$1
-      ;;
-
-      --command )
-        shift
-        command=$1
       ;;
 
       --force )
@@ -777,6 +782,10 @@ function cmd_install()
 
   if [ -z "${script_path}" ]; then
     echo_fatal "Script path is empty. Use --help to show more information."
+  fi
+
+  if [ -z "${command}" ]; then
+    echo_fatal "Command is empty. Use --help to show more information."
   fi
 
   local params=''
@@ -853,11 +862,16 @@ function cmd_install()
 
 function cmd_uninstall()
 {
-  local command=
   local bin_path=
   local -a ignore_reg_list=
   local no_installer=false
   local all=false
+
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi
 
   local is_in_ignore=false
   while [ $# -gt 0 ]; do
@@ -867,11 +881,6 @@ function cmd_uninstall()
     fi
 
 		case $1 in
-
-      --command )
-        shift
-        command=$1
-      ;;
 
       --script-path )
         shift
@@ -934,6 +943,11 @@ function cmd_uninstall()
     esac
     shift
   done
+
+
+  if [ -z "${command}" ]; then
+    echo_fatal "Command is empty. Use --help to show more information."
+  fi
 
 
   if [ -n "${script_path}" ]; then

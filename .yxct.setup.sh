@@ -47,6 +47,15 @@ function cmd_install()
     shift
   done
 
+
+  if [[ -z "${command}" ]]; then
+    echo_fatal "Command is empty"
+  fi
+
+  if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
+    echo_fatal "Invalid script:${command}"
+  fi
+
   sudo cp --force "${script_path}/${SCRIPT_NAME}" "${install_path}"
   chmod +x "${install_path}/${SCRIPT_NAME}"
 }
@@ -83,20 +92,16 @@ function cmd_uninstall()
   done
 
 
-  # if [[ -z "${command}" ]]; then
-  #   echo_fatal "Command is empty"
-  # fi
+  if [[ -z "${command}" ]]; then
+    echo_fatal "Command is empty"
+  fi
 
   # if [[ -z "${install_path}" ]]; then
   #   echo_fatal "script path is empty"
   # fi
 
-  if [ -n "${command}" ]; then
-    if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
-      echo_fatal "Invalid script:${command}"
-    fi
-  else
-    command="${SCRIPT_NAME}"
+  if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
+    echo_fatal "Invalid script:${command}"
   fi
 
   if [ -z "${install_path}" ]; then
