@@ -66,8 +66,8 @@ function cmd_install()
     echo_fatal "Invalid script:${command}"
   fi
 
-  sudo cp --force "${script_path}/${SCRIPT_NAME}" "${bin_path}"
-  chmod +x "${bin_path}/${SCRIPT_NAME}"
+  sudo cp --force "${script_path%/}/${SCRIPT_NAME}" "${bin_path%/}"
+  chmod +x "${bin_path%/}/${SCRIPT_NAME}"
 }
 
 function cmd_uninstall()
