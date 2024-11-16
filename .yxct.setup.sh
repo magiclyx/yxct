@@ -14,7 +14,7 @@ function echo_fatal()
   exit 1
 }
 
-SCRIPT_NAME=yxscrpmgr
+SCRIPT_NAME=yxct
 
 function cmd_install()
 {
@@ -100,7 +100,7 @@ function cmd_uninstall()
   fi
 
   if [ -z "${install_path}" ]; then
-    local app_path=$(which yxscrpmgr)
+    local app_path=$(which "${SCRIPT_NAME}")
     if [ -n "${app_path}" ]; then
       install_path=$(dirname "${app_path}")
     fi
@@ -111,7 +111,7 @@ function cmd_uninstall()
   if [ -x "${execute_file}" ]; then
     sudo rm -f "${execute_file}" > /dev/null
   else
-    echo_fatal "Can not found script ${yxscrpmgr} on path:${execute_file}"
+    echo_fatal "Can not found script ${SCRIPT_NAME} on path:${execute_file}"
   fi
 
   return 0
