@@ -114,7 +114,7 @@ function file_name_if_single()
 {
 	local script_path=$1
   local -a ignore_reg_list
-  if [ $2 == '--ignore' ]; then
+  if [[ $2 == '--ignore' ]]; then
     shift # ignore $1
     shift # ignore --ignore
     ignore_reg_list=($@)
@@ -353,7 +353,7 @@ function remove_command()
     shift
   done
 
-  if [ -n "${command}" ]; then
+  if [ -z "${command}" ]; then
     echo_fatal "Command is empty !"
   fi
 
@@ -421,7 +421,7 @@ function remove_same_file()
       echo_fatal "File not exist :${file_path}"
     fi
     local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}' )
-    if [ -n "${file_hash}" ]; then
+    if [ -z "${file_hash}" ]; then
       echo_fatal "Failed to calculate the hash value of the file:${file_path}"
     fi
 
@@ -532,14 +532,26 @@ function uninstall_by_script_path()
 {
   local script_path=
   local additional=
+  local -a ignore_reg_list=
   local all=false
   local no_installer=false
 
+  local is_in_ignore=false
   while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
     case $1 in
       --path )
         shift
         script_path=$1
+      ;;
+
+      --ignore )
+        is_in_ignore=true
+        force=true
       ;;
 
       --all )
@@ -551,7 +563,11 @@ function uninstall_by_script_path()
       ;;
 
       *)
-        additional="${additional} $1"
+        if ${is_in_ignore}; then
+          ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
+        else
+          additional="${additional} $1"
+        fi
     esac
     shift
   done
@@ -567,7 +583,7 @@ function uninstall_by_script_path()
 
   if [ -f "${script_path}" ]; then
   # 如果脚本路径是一个文件
-    if echo "${filename}" | grep -Eq "\.${CMD}.install(\.sh|\.py|\.rb)?"; then
+    if basename "${script_path}" | grep -Eq "\.${CMD}.install(\.sh|\.py|\.rb)?"; then
     # 如果文件是一个安装脚本, 直接调用脚本
       run_setup_script uninstall --path "${script_path}" ${additional}
     elif ${no_installer}; then
@@ -579,13 +595,13 @@ function uninstall_by_script_path()
     fi
   elif [ -d "${script_path}" ]; then
   # 如果脚本路径是一个目录
-    local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "('\.${CMD}.install(\.sh|\.py|\.rb)?')")
+    local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "\.${CMD}.install(\.sh|\.py|\.rb)?")
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
       run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${additional}
     elif ${no_installer}; then
     # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
-      local singl_app_name=$(file_name_if_single "${script_path}")
+      local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
       if [ -n "${singl_app_name}" ]; then
         remove_same_file --path "${script_path}/${singl_app_name}" ${all_params} ${additional}
       else
@@ -630,7 +646,9 @@ function uninstall_by_bin_path()
     shift
   done
 
+
   if [ -f "${bin_path}" ]; then
+  # 如果bin_path 是个文件, 直接删除， command 提供验证
     if [ -n "${command}" ]; then
       local filename=$(basename "${file_path}")
       if [ "${filename}" != "${command}" ]; then
@@ -643,6 +661,7 @@ function uninstall_by_bin_path()
       echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
   elif [ -d "${bin_path}" ]; then
+  # 如果bin_path 是个目录, 则command 不能为空, 根据command删除
 
     if [ -z "${command}" ]; then
       echo_fatal "Can not find any script in path ${bin_path}"
@@ -836,10 +855,17 @@ function cmd_uninstall()
 {
   local command=
   local bin_path=
+  local -a ignore_reg_list=
   local no_installer=false
   local all=false
 
+  local is_in_ignore=false
   while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
 		case $1 in
 
       --command )
@@ -858,6 +884,11 @@ function cmd_uninstall()
 
       --all )
         all=true
+      ;;
+
+      --ignore )
+        is_in_ignore=true
+        force=true
       ;;
 
       --bin )
@@ -894,7 +925,11 @@ function cmd_uninstall()
       ;;
 
       *)
-        echo_fatal "Unknown params $1. Use '${CMD} --help' to show help information"
+        if ${is_in_ignore}; then
+          ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
+        else
+          echo_fatal "Unknown params $1. Use '${CMD} --help' to show help information"
+        fi
       ;;
     esac
     shift
@@ -911,11 +946,14 @@ function cmd_uninstall()
     if [ -n "${bin_path}" ]; then 
       params="${params} --bin-path ${bin_path}"
     fi
+    if ${no_installer}; then
+      params="${params} --no-installer"
+    fi
     if ${all}; then
       params="${params} --all"
     fi
 
-    uninstall_by_script_path --path "${script_path}" --no-installer ${no_installer} ${params}
+    uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]}
   elif [ -n "${bin_path}" ]; then
     # 如果没提供脚本路径， 但bin_path不为空
 
@@ -924,7 +962,7 @@ function cmd_uninstall()
       params="${params} --command ${command}"
     fi
 
-    uninstall_by_bin_path --path "${bin_path}"
+    uninstall_by_bin_path --path "${bin_path}" ${params}
   elif [ -n "${command}" ]; then
     # 如果没提供脚本路径和bin_path, 但提供了command
 

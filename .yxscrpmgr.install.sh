@@ -53,6 +53,12 @@ function cmd_install()
 
 function cmd_uninstall()
 {
+  if [ -z "$*" ]; then
+    echo "cmd_uninstall: Empty"
+  else
+    echo "cmd_uninstall: $*"
+  fi
+
   local command=
   local install_path=
 
@@ -77,28 +83,38 @@ function cmd_uninstall()
   done
 
 
-  if [[ -z "${command}" ]]; then
-    echo_fatal "Command is empty"
+  # if [[ -z "${command}" ]]; then
+  #   echo_fatal "Command is empty"
+  # fi
+
+  # if [[ -z "${install_path}" ]]; then
+  #   echo_fatal "script path is empty"
+  # fi
+
+  if [ -n "${command}" ]; then
+    if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
+      echo_fatal "Invalid script:${command}"
+    fi
+  else
+    command="${SCRIPT_NAME}"
   fi
 
-  if [[ -z "${install_path}" ]]; then
-    echo_fatal "script path is empty"
+  if [ -z "${install_path}" ]; then
+    local app_path=$(which yxscrpmgr)
+    if [ -n "${app_path}" ]; then
+      install_path=$(dirname "${app_path}")
+    fi
   fi
 
-  if [[ "${command}" != "yxscrpmgr" ]]; then
-    echo_fatal "Invalid script:${command}"
-  fi
 
-
-  local execute_file="${install_path}/${SCRIPT_NAME}"
+  local execute_file="${install_path}/${command}"
   if [ -x "${execute_file}" ]; then
-    sudo rm -f "${execute_file}"
+    sudo rm -f "${execute_file}" > /dev/null
   else
     echo_fatal "Can not found script ${yxscrpmgr} on path:${execute_file}"
   fi
 
   return 0
-
 }
 
 function cmd_verify()
@@ -116,7 +132,7 @@ if [[ -z ${sub_cmd} ]]; then
   echo_fatal "Param error. use '${CMD} --help' to show document"
 fi
 
-echo "Here is install script. sub-cmd:${sub_cmd}"
+echo "Here is uninstall script. sub-cmd:${sub_cmd}"
 
 
 if [[ ${sub_cmd} == 'install' ]]; then
