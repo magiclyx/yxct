@@ -13,6 +13,10 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 CP=/usr/bin/cp
 RM=/usr/bin/rm
 
+BASH=/bin/bash
+ENV=/usr/bin/env
+
+
 
 #Display comand only, not run
 TEST_ONLY=false
@@ -77,7 +81,33 @@ IGNORE_LIST=(
 
 function yx_eval()
 {
-  echo_cmd "eval $@"
+  # get script file path from command
+  local script_path=$(echo $@ | awk '{print $1}')
+  
+  if [ -n "${script_path}" ]; then
+    
+    # get exe titile from command
+    local title=$(head -n 1 "${script_path}")
+    if echo ${title} | grep -Eq "^#!.*"; then
+      # if title exist, call commmand directly
+      echo_cmd "eval $@"
+    else
+      # try get file extension name
+      local file_ext=${script_path##*.}
+
+      # call command by extension name
+      if [ -n "${file_ext}" ]; then
+        if strcontains "${file_ext}" "sh" --ignorecase; then
+          echo_cmd "eval ${BASH} $@"
+        elif strcontains "${file_ext}" "py" --ignorecase; then
+          echo_cmd "eval ${ENV} python3 $@"
+        else
+          echo_cmd "eval $@"
+        fi
+      fi
+
+    fi # end of (echo ${title} | grep -Eq "^#!.*"; then)
+  fi # end of (if [ -n "${script_path}" ]; then)
 }
 
 
@@ -114,10 +144,12 @@ function echo_cmd()
     return
   fi
 
-  echo_verbose "$*"
 
   if ${TEST_ONLY}; then
+    echo_verbose "Test-only:$*"
     return
+  else
+    echo_verbose "$*"
   fi
 
   $@
