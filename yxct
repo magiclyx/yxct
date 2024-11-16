@@ -13,6 +13,13 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 CP=/usr/bin/cp
 RM=/usr/bin/rm
 
+
+INFO_SILENT=0
+INFO_FATAL=1
+INFO_ERROR=4
+INFO_VERBOSE=9
+INFO_LEVEL=${INFO_ERROR} # default error
+
 ###########################################################
 # Ignore file list in script folder
 ###########################################################
@@ -60,32 +67,146 @@ IGNORE_LIST=(
 )
 
 
+###########################################################
+# logger
+###########################################################
+
+function yx_eval()
+{
+  echo_verbose "$*"
+  eval $@
+}
+
 
 ###########################################################
 # YXLib
 ###########################################################
 
+function echo_verbose()
+{
+  if (( "${INFO_LEVEL}" < "${INFO_VERBOSE}" )); then
+    return
+  fi
+
+  (>&1 echo "$1")
+}
+
 function echo_fatal()
 {
-  echo $@
-  exit 1
+  if (( "${INFO_LEVEL}" < "${INFO_ERROR}" )); then
+    return
+  fi
+
+  local red=$(tput setaf 1);
+  local reset=$(tput sgr0);
+  
+  (>&2 echo "${red}Fatal:${str}${reset}");
+  exit 1;
 }
+
 
 function echo_cmd()
 {
-  echo "$*"
+  if (( "${INFO_LEVEL}" < "${INFO_ERROR}" )); then
+    return
+  fi
+
+  echo_verbose "$*"
   $@
 }
 
 function echo_err()
 {
-  echo "$*"
-  $@
+  local magenta=$(tput setaf 5);
+  local reset=$(tput sgr0);
+
+  (>&2 echo "${magenta}${str}${reset}")
+}
+
+function yx_str_checkfmt()
+{
+	local reg=$1
+	local str=$2
+	
+	if [[ -z ${str} ]]; then
+		str=''
+	fi
+	
+	if [[ -z ${reg} ]]; then
+		reg='^\s*[^\s]+\s*$'
+	fi
+	
+	if ! [[ ${str} =~ ${reg} ]] ; then
+		return 1
+	fi
+	
+	return 0
+}
+
+function strcontains()
+{
+	local str="$1"
+	local arr_str="$2"
+	local ignorecase=false
+	shift 
+	shift 
+	
+	while [ $# -gt 0 ]; do
+		case $1 in
+			
+			--ignorecase )
+				ignorecase=true
+			;;
+			
+			*)
+				echo "Invalid optional ${1}"
+			;;
+		esac
+		shift
+	done
+
+	
+	if ${ignorecase}; then
+		for e in $(echo "${arr_str}"); do
+			[[ "${e^^}" == "${str^^}" ]] && return 0
+		done
+	else
+		for e in $(echo "${arr_str}"); do
+      echo "compare between ${e} and ${str}"
+			[[ "${e}" == "${str}" ]] && return 0
+		done
+	fi
+	
+	return 1
 }
 
 ###########################################################
 # Utility
 ###########################################################
+
+function set_info_level()
+{
+  local info_level=$1
+  if [ -n "${info_level}" ]; then
+
+    if yx_str_checkfmt '^([0-9])+$' "${info_level}"; then
+      INFO_LEVEL=${info_level}
+    else
+      if strcontains "${info_level}" 'silent' --ignorecase; then
+        INFO_LEVEL=${INFO_SILENT}
+      elif strcontains "${info_level}" 'fatal' --ignorecase; then
+        INFO_LEVEL=${INFO_FATAL}
+      elif strcontains "${info_level}" 'error' --ignorecase; then
+        INFO_LEVEL=${INFO_ERROR}
+      elif strcontains "${info_level}" 'verbose' --ignorecase; then
+        INFO_LEVEL=${INFO_VERBOSE}
+      else
+        echo_fatal "Unknown info level:${info_level}"
+      fi
+    fi # end of 'if yx_str_checkfmt '^([0-9])+$' '
+
+  fi # end of 'if [ -n ${info_level} ]'
+}
 
 
 function is_in_reg_list()
@@ -318,7 +439,7 @@ function run_setup_script()
   fi
 
   pushd $(dirname "${script_path}") > /dev/null
-  eval "${script_path} ${option} ${additional}"
+  yx_eval "${script_path} ${option} ${additional}"
   result="$?"
   popd > /dev/null
 
@@ -376,7 +497,8 @@ function remove_command()
     fi
 
     # 强制删除命令
-    if ! ${RM} -f "${finded_exec_path}"; then
+    echo_cmd "${RM} -f ${finded_exec_path}"
+    if [[ $? != '0' ]]; then
       echo_fatal "Fail to uninstall '${command}'"
     fi
 
@@ -452,7 +574,8 @@ function remove_same_file()
       fi
 
       # 强制删除命令
-      if ! ${RM} -f "${execute_file_path}"; then
+      echo_cmd "${RM} -f ${execute_file_path}"
+      if [[ $? != 0 ]]; then
         echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
       fi
    else
@@ -531,7 +654,7 @@ function install_file()
     force_params='--force'
   fi
 
-  ${CP} ${force_params} "${file_path}" "${bin_path}/${command}"
+  echo_cmd "${CP} ${force_params} ${file_path} ${bin_path}/${command}"
 }
 
 
@@ -682,7 +805,8 @@ function uninstall_by_bin_path()
     fi
 
     # 强制删除命令
-    if ! ${RM} -f "${bin_path}"; then
+    echo_cmd "${RM} -f ${bin_path}"
+    if [ $? != 0 ]; then
       echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
   elif [ -d "${bin_path}" ]; then
@@ -697,7 +821,8 @@ function uninstall_by_bin_path()
       echo_file "Script does not exist:${execute_file_path}"
     fi
     # 强制删除命令
-    if ! ${RM} -f "${execute_file_path}"; then
+    echo_cmd "${RM} -f ${execute_file_path}"
+    if [ $? != 0 ]; then
       echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
     fi
   else
@@ -713,13 +838,14 @@ function uninstall_by_bin_path()
 
 function cmd_install()
 {
-
-  local show_help=false
   local script_path=
   local bin_path=
   local -a ignore_reg_list=
   local no_installer=false
   local force=false
+
+  local info_level=
+  local show_help=false
 
   local command=
   if ! [[ "$1" =~ ^-.*$ ]]; then
@@ -783,6 +909,10 @@ function cmd_install()
         bin_path=$1
       ;;
 
+      --info-level )
+        shift
+        info_level=$1
+			;;
 
       --help | h )
         show_help=true
@@ -799,6 +929,10 @@ function cmd_install()
     shift
   done
 
+
+  if [ -n "${info_level}" ]; then
+    set_info_level "${info_level}"
+  fi
 
   if [ -z "${script_path}" ]; then
     echo_fatal "Script path is empty. Use --help to show more information."
@@ -883,6 +1017,9 @@ function cmd_uninstall()
   local no_installer=false
   local all=false
 
+  local info_level=
+  local show_help=false
+
   local command=
   if ! [[ "$1" =~ ^-.*$ ]]; then
     command=$1
@@ -945,6 +1082,11 @@ function cmd_uninstall()
         bin_path=$1
       ;;
 
+      --info-level )
+        shift
+        info_level=$1
+			;;
+
       --help | h )
         show_help=true
       ;;
@@ -960,6 +1102,10 @@ function cmd_uninstall()
     shift
   done
 
+
+  if [ -n "${info_level}" ]; then
+    set_info_level "${info_level}"
+  fi
 
   if [ -z "${command}" ]; then
     echo_fatal "Command is empty. Use --help to show more information."

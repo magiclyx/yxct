@@ -18,11 +18,11 @@ SCRIPT_NAME=yxct
 
 function cmd_install()
 {
-  if [ -z "$*" ]; then
-    echo "cmd_install: Empty"
-  else
-    echo "cmd_install: $*"
-  fi
+  # if [ -z "$*" ]; then
+  #   echo "cmd_install: Empty"
+  # else
+  #   echo "cmd_install: $*"
+  # fi
 
     local script_path=$(pwd)
     local bin_path=
@@ -72,11 +72,11 @@ function cmd_install()
 
 function cmd_uninstall()
 {
-  if [ -z "$*" ]; then
-    echo "cmd_uninstall: Empty"
-  else
-    echo "cmd_uninstall: $*"
-  fi
+  # if [ -z "$*" ]; then
+  #   echo "cmd_uninstall: Empty"
+  # else
+  #   echo "cmd_uninstall: $*"
+  # fi
 
   local command=
   local bin_path=
@@ -147,7 +147,7 @@ if [[ -z ${sub_cmd} ]]; then
   echo_fatal "Param error. use '${CMD} --help' to show document"
 fi
 
-echo "Here is setup script. sub-cmd:${sub_cmd}"
+# echo "Here is setup script. sub-cmd:${sub_cmd}"
 
 
 if [[ ${sub_cmd} == 'install' ]]; then
