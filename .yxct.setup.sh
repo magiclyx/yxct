@@ -18,8 +18,14 @@ SCRIPT_NAME=yxct
 
 function cmd_install()
 {
+  if [ -z "$*" ]; then
+    echo "cmd_install: Empty"
+  else
+    echo "cmd_install: $*"
+  fi
+
     local script_path=$(pwd)
-    local install_path=
+    local bin_path=
     local command=
 
     while [ $# -gt 0 ]; do
@@ -27,7 +33,7 @@ function cmd_install()
 
       --bin-path )
         shift
-        install_path=$1
+        bin_path=$1
       ;;
 
       --command )
@@ -52,12 +58,16 @@ function cmd_install()
     echo_fatal "Command is empty"
   fi
 
+  if [ -z "${bin_path}" ]; then
+    echo_fatal "bin path is empty"
+  fi
+
   if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
     echo_fatal "Invalid script:${command}"
   fi
 
-  sudo cp --force "${script_path}/${SCRIPT_NAME}" "${install_path}"
-  chmod +x "${install_path}/${SCRIPT_NAME}"
+  sudo cp --force "${script_path}/${SCRIPT_NAME}" "${bin_path}"
+  chmod +x "${bin_path}/${SCRIPT_NAME}"
 }
 
 function cmd_uninstall()
@@ -69,14 +79,14 @@ function cmd_uninstall()
   fi
 
   local command=
-  local install_path=
+  local bin_path=
 
   while [ $# -gt 0 ]; do
 		case $1 in
 
       --bin-path )
         shift
-        install_path=$1
+        bin_path=$1
       ;;
 
       --command )
@@ -96,23 +106,23 @@ function cmd_uninstall()
     echo_fatal "Command is empty"
   fi
 
-  # if [[ -z "${install_path}" ]]; then
-  #   echo_fatal "script path is empty"
-  # fi
+  if [ -z "${bin_path}" ]; then
+    echo_fatal "bin path is empty"
+  fi
 
   if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
     echo_fatal "Invalid script:${command}"
   fi
 
-  if [ -z "${install_path}" ]; then
+  if [ -z "${bin_path}" ]; then
     local app_path=$(which "${SCRIPT_NAME}")
     if [ -n "${app_path}" ]; then
-      install_path=$(dirname "${app_path}")
+      bin_path=$(dirname "${app_path}")
     fi
   fi
 
 
-  local execute_file="${install_path}/${command}"
+  local execute_file="${bin_path}/${command}"
   if [ -x "${execute_file}" ]; then
     sudo rm -f "${execute_file}" > /dev/null
   else
@@ -137,7 +147,7 @@ if [[ -z ${sub_cmd} ]]; then
   echo_fatal "Param error. use '${CMD} --help' to show document"
 fi
 
-echo "Here is uninstall script. sub-cmd:${sub_cmd}"
+echo "Here is setup script. sub-cmd:${sub_cmd}"
 
 
 if [[ ${sub_cmd} == 'install' ]]; then

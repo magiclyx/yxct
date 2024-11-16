@@ -484,7 +484,8 @@ function install_file()
       ;;
 
       --command )
-        command=true
+        shift
+        command=$1
       ;;
 
       --force )
@@ -537,6 +538,7 @@ function uninstall_by_script_path()
 {
   local script_path=
   local additional=
+  local bin_path=
   local -a ignore_reg_list=
   local all=false
   local no_installer=false
@@ -552,6 +554,11 @@ function uninstall_by_script_path()
       --path )
         shift
         script_path=$1
+      ;;
+
+      --bin-path )
+        shift
+        bin_path=$1
       ;;
 
       --ignore )
@@ -583,16 +590,27 @@ function uninstall_by_script_path()
 
   local all_params=''
   if "${all}"; then
-    all_params=' -all'
+    all_params='--all'
+  fi
+
+  local params=''
+  
+  # --bin-path
+  if [ -z "${bin_path}" ]; then
+    local command_path=$(which "${command}")
+    if [ -n "${command_path}" ]; then
+      bin_path=$(dirname "${command_path}")
+      params="--bin-path ${bin_path}"
+    fi
   fi
 
   if [ -f "${script_path}" ]; then
   # 如果脚本路径是一个文件
     if basename "${script_path}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
     # 如果文件是一个安装脚本, 直接调用脚本
-      run_setup_script uninstall --path "${script_path}" ${additional}
+      run_setup_script uninstall --path "${script_path}" ${params} ${additional}
     elif ${no_installer}; then
-      # 如果文件不上是安装脚本，但指定了--no-installer参数，尝试查找文件相同的命令，并删除
+      # 如果文件不是安装脚本，但指定了--no-installer参数，尝试查找文件相同的命令，并删除
       remove_same_file --path "${script_path}" ${all_params} ${additional}
     else
       # 如果文件不上是安装脚本，未指定了--no-installer参数，报错
@@ -603,7 +621,7 @@ function uninstall_by_script_path()
     local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-      run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${additional}
+      run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${params} ${additional}
     elif ${no_installer}; then
     # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
       local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
@@ -655,9 +673,9 @@ function uninstall_by_bin_path()
   if [ -f "${bin_path}" ]; then
   # 如果bin_path 是个文件, 直接删除， command 提供验证
     if [ -n "${command}" ]; then
-      local filename=$(basename "${file_path}")
+      local filename=$(basename "${bin_path}")
       if [ "${filename}" != "${command}" ]; then
-        echo_fatal "Filename name and command not matched."
+        echo_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
     fi
 
@@ -789,9 +807,21 @@ function cmd_install()
   fi
 
   local params=''
+  
+  # --bin-path
   if [ -n "${bin_path}" ]; then
     params="${params} --bin-path ${bin_path}"
+  else
+    if [ -n "${command}" ]; then
+      local command_path=$(which "${command}")
+      if [ -n "${command_path}" ]; then
+        bin_path=$(dirname "${command_path}")
+        params="--bin-path ${bin_path}"
+      fi
+    fi
   fi
+
+  # --command
   if [ -n "${command}" ]; then
     params="${params} --command ${command}"
   fi
@@ -841,22 +871,6 @@ function cmd_install()
     echo_fatal "Invalid script path:${script_path}"
   fi
 
-
-
-
-  # # test install script file
-  # local install_script="${script_path}/install.sh"
-  # if ! [ -f "${install_script}" ]; then
-  #   install_script="${script_path}/install"
-  #   if ! [ -f "${install_script}" ]; then
-  #     echo_fatal "Can not find ainstall script in path :${script_path}"
-  #   fi
-  # fi
-
-  # # export SCRIPT_PATH="${script_path}"
-  # pushd "${script_path}" > /dev/null
-  # eval "${install_script} install --script-path ${script_path} --bin-path ${install_path}"
-  # popd > /dev/null
 }
 
 
@@ -950,13 +964,15 @@ function cmd_uninstall()
   fi
 
 
+  local params=''
+  if [ -n "${command}" ]; then
+    params="${params} --command ${command}"
+  fi
+
+
   if [ -n "${script_path}" ]; then
     # 如果提供了脚本路径
 
-    local params=''
-    if [ -n "${command}" ]; then
-      params="${params} --command ${command}"
-    fi
     if [ -n "${bin_path}" ]; then 
       params="${params} --bin-path ${bin_path}"
     fi
@@ -971,21 +987,15 @@ function cmd_uninstall()
   elif [ -n "${bin_path}" ]; then
     # 如果没提供脚本路径， 但bin_path不为空
 
-    local params=''
-    if [ -n "${command}" ]; then
-      params="${params} --command ${command}"
-    fi
-
     uninstall_by_bin_path --path "${bin_path}" ${params}
   elif [ -n "${command}" ]; then
     # 如果没提供脚本路径和bin_path, 但提供了command
 
-    local params=''
     if ${all}; then
       params="${params} --all"
     fi
 
-    remove_command --command "${command}" ${params}
+    remove_command ${params}
   else
     echo_fatal "Invalid params, use --help to show more information."
   fi
