@@ -10,6 +10,8 @@ USR_LOCAL_BIN_PATH='/usr/local/bin'
 USR_LOCAL_SBIN_PATH='/usr/local/sbin'
 DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
+CP=/usr/bin/cp
+RM=/usr/bin/rm
 
 ###########################################################
 # Ignore file list in script folder
@@ -374,7 +376,7 @@ function remove_command()
     fi
 
     # 强制删除命令
-    if ! rm -f "${finded_exec_path}"; then
+    if ! ${RM} -f "${finded_exec_path}"; then
       echo_fatal "Fail to uninstall '${command}'"
     fi
 
@@ -450,7 +452,7 @@ function remove_same_file()
       fi
 
       # 强制删除命令
-      if ! rm -f "${execute_file_path}"; then
+      if ! ${RM} -f "${execute_file_path}"; then
         echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
       fi
    else
@@ -529,7 +531,7 @@ function install_file()
     force_params='--force'
   fi
 
-  cp ${force_params} "${file_path}" "${bin_path}/${command}"
+  ${CP} ${force_params} "${file_path}" "${bin_path}/${command}"
 }
 
 
@@ -680,7 +682,7 @@ function uninstall_by_bin_path()
     fi
 
     # 强制删除命令
-    if ! rm -f "${bin_path}"; then
+    if ! ${RM} -f "${bin_path}"; then
       echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
   elif [ -d "${bin_path}" ]; then
@@ -695,7 +697,7 @@ function uninstall_by_bin_path()
       echo_file "Script does not exist:${execute_file_path}"
     fi
     # 强制删除命令
-    if ! rm -f "${execute_file_path}"; then
+    if ! ${RM} -f "${execute_file_path}"; then
       echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
     fi
   else
