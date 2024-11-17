@@ -872,6 +872,144 @@ function uninstall_by_bin_path()
 }
 
 ###########################################################
+# Usage
+###########################################################
+
+function usage()
+{
+cat <<EOF
+  usage: ${CMD} <sub-command> <optional>
+  Manage command tool
+
+  usage: ${CMD} <sub-command> <--help|-h>
+  For detail information for sub-command.
+
+  usage: ${CMD} --help
+  For this help information
+
+  The following sub-command are allowed:
+  install:      Install a command tool.
+  uninstall:    Uninstall a command tool.
+
+  Other options
+  Use '${CMD} --help' show this help information
+EOF
+}
+
+#:~ TODO --script-path 直接改名叫--path
+function usage_install()
+{
+cat <<EOF
+  usage: ${CMD} install <command> <optional>
+  Install a command
+
+  usage: ${CMD} install --help
+  Show this help information
+
+  The following options are availiable:
+  --script-path <path>      Install script or the folder that contains an installation script.
+                            If '--no-installerr' is used. '--script-path' can also point to a command
+                            script directly.
+
+  --no-installer            If used. '--script-path' can point to a command path or a foler contains a
+                            single command file.  ${CMD} will copy the command to destination directly.
+
+  --ignore <reg1> <reg2>..  If '--script-path' point to a folder contains mutiple script but no install
+                            script. ${CMD} will not be able to determine which script to install.
+                            use '--ignore' and indicate regulars expression to ignore useless files.
+  
+  --force                   If an existing file on bin-path, remove it.
+
+
+  The followint options indicate destination path:
+  --bin                     The command will be install to '/bin'
+  --sbin                    The command will be install to '/sbin'
+  --usr-bin                 The command will be install to '/usr/bin'
+  --usr-local-bin           The command will be install to '/usr/local/bin'
+  --usr-local-sbin          The command will be install to '/usr/local/sbin'
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  If none of the above destination paths are specified, ${CMD} will install the command to '/usr/local/bin' as default.
+
+
+  The followint options use for debug
+  --test                    ${CMD} will not execute any comannd but output them into stdout instead.
+
+  --info-level              Command output level. 
+                            The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                            or a number greater than 0.
+
+                            You can use ${CMD} config to get or set it as the global value. 
+                              ${CMD} config --write --key info.level --val debug
+                              ${CMD} config --read --key info.level
+
+                            Use '${CMD} config --help' to see more information.
+
+  Other options
+  Use '${CMD} --help' show all help information
+EOF
+}
+
+function usage_uninstall()
+{
+cat <<EOF
+  usage: ${CMD} uninstall <command> <optional>
+  Uninstall a command
+
+  usage: ${CMD} install --help
+  Show this help information
+
+  The following options are availiable:
+  --script-path <path>      Uninstall script or the folder that contains an uninstallation script.
+                            If '--no-installerr' is used. '--script-path' can also point to a command
+                            script directly, ${CMD} will search the command on system and try to
+                            delete it.
+
+  --no-installer            If used. '--script-path' can point to a command path or a foler contains a
+                            single command file.  ${CMD} will search the command on system and try to 
+                            delete it,
+
+  --ignore <reg1> <reg2>..  If '--script-path' point to a folder contains mutiple script but no uninstall
+                            script.  ${CMD} will not be able to determine which script to uninstall.
+                            Use '--ignore' and indicate regulars expression to ignore useless files.
+  
+  --force                   If an existing file on bin-path, remove it.
+
+  --all                     If command installed on mutiple path and not indicate a bin path,
+                            ${CMD} will try to delete all of them.
+
+
+  The followint options indicate destination path:
+  --bin                     The command will be uninstall from '/bin'
+  --sbin                    The command will be uninstall from '/sbin'
+  --usr-bin                 The command will be uninstall from '/usr/bin'
+  --usr-local-bin           The command will be uninstall from '/usr/local/bin'
+  --usr-local-sbin          The command will be uninstall from '/usr/local/sbin'
+  --custom-dest <path>      Indicate a destination path as the bin path.
+
+  If indicate a destination path and the command not installed on that path, ${CMD} will do
+  nothing and raise an error.
+
+
+  The followint options use for debug
+  --test                    ${CMD} will not execute any comannd but output them into stdout instead.
+
+  --info-level              Command output level. 
+                            The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                            or a number greater than 0.
+
+                            You can use ${CMD} config to get or set it as the global value. 
+                              ${CMD} config --write --key info.level --val debug
+                              ${CMD} config --read --key info.level
+
+                            Use '${CMD} config --help' to see more information.
+
+  Other options
+  Use '${CMD} --help' show all help information
+EOF
+}
+
+###########################################################
 # Command
 ###########################################################
 
@@ -975,88 +1113,95 @@ function cmd_install()
     shift
   done
 
-
-  if ${test}; then
-    TEST_ONLY=true
-  fi
-
-
-  if [ -n "${info_level}" ]; then
-    set_info_level "${info_level}"
-  fi
-
-  if [ -z "${script_path}" ]; then
-    echo_fatal "Script path is empty. Use --help to show more information."
-  fi
-
-  if [ -z "${command}" ]; then
-    echo_fatal "Command is empty. Use --help to show more information."
-  fi
-
-  local params=''
-  
-  # --bin-path
-  if [ -n "${bin_path}" ]; then
-    params="${params} --bin-path ${bin_path}"
+  if ${show_help}; then
+    usage_install
+    exit 0
   else
-    if [ -n "${command}" ]; then
-      local command_path=$(which "${command}")
-      if [ -n "${command_path}" ]; then
-        bin_path=$(dirname "${command_path}")
-        params="--bin-path ${bin_path}"
-      fi
+    if ${test}; then
+      TEST_ONLY=true
     fi
-  fi
-
-  # --command
-  if [ -n "${command}" ]; then
-    params="${params} --command ${command}"
-  fi
 
 
-  if [ -f "${script_path}" ]; then
-  # 如果脚本路径是一个文件
-    if echo $(basename ${script_path}) | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
-    # 如果文件是一个安装脚本, 直接调用脚本
-      run_setup_script install --path "${script_path}" ${params}
-    elif ${no_installer}; then
-    # 如果没有找到安装脚本，但使用了--no-installer参数, 则直接安装文件
-      local force_params=''
-      if ${force}; then
-        force_params='--force'
-      fi
-      install_file --file "${script_path}" "${force_params}" ${params}
+    if [ -n "${info_level}" ]; then
+      set_info_level "${info_level}"
+    fi
+
+    if [ -z "${script_path}" ]; then
+      echo_fatal "Script path is empty. Use --help to show more information."
+    fi
+
+    if [ -z "${command}" ]; then
+      echo_fatal "Command is empty. Use --help to show more information."
+    fi
+
+    local params=''
+    
+    # --bin-path
+    if [ -n "${bin_path}" ]; then
+      params="${params} --bin-path ${bin_path}"
     else
-      echo_fatal "Can not find a install script. Use '--no-installer' try to install from a script file directly"
+      if [ -n "${command}" ]; then
+        local command_path=$(which "${command}")
+        if [ -n "${command_path}" ]; then
+          bin_path=$(dirname "${command_path}")
+          params="--bin-path ${bin_path}"
+        fi
+      fi
     fi
-  elif [ -d "${script_path}" ]; then
-    # 如果脚本路径是一个目录
-    local script_file_name=$(basename "${script_path}")
-    local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
-    if [ -n "${install_script_filename}" ]; then
-      # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-      run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
-    elif ${no_installer}; then
-      # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
-      local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
-      if [ -n "${singl_app_name}" ]; then
+
+    # --command
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
+
+
+    if [ -f "${script_path}" ]; then
+    # 如果脚本路径是一个文件
+      if echo $(basename ${script_path}) | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
+      # 如果文件是一个安装脚本, 直接调用脚本
+        run_setup_script install --path "${script_path}" ${params}
+      elif ${no_installer}; then
+      # 如果没有找到安装脚本，但使用了--no-installer参数, 则直接安装文件
         local force_params=''
         if ${force}; then
           force_params='--force'
         fi
-        install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+        install_file --file "${script_path}" "${force_params}" ${params}
       else
-        # 如果不是单脚本APP, 不知道如何安装
-        echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+        echo_fatal "Can not find a install script. Use '--no-installer' try to install from a script file directly"
+      fi
+    elif [ -d "${script_path}" ]; then
+      # 如果脚本路径是一个目录
+      local script_file_name=$(basename "${script_path}")
+      local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
+      if [ -n "${install_script_filename}" ]; then
+        # 如果目录中找到安装脚本, 直接掉用那个安装脚本
+        run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
+      elif ${no_installer}; then
+        # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
+        local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+        if [ -n "${singl_app_name}" ]; then
+          local force_params=''
+          if ${force}; then
+            force_params='--force'
+          fi
+          install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+        else
+          # 如果不是单脚本APP, 不知道如何安装
+          echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+        fi
+      else
+      # 如果文件是安装脚本，未指定了--no-installer参数，报错
+        echo_fatal "Can not find a install script. Use '--no-installer' try to install file as conmand directly."
       fi
     else
-    # 如果文件是安装脚本，未指定了--no-installer参数，报错
-      echo_fatal "Can not find a install script. Use '--no-installer' try to install file as conmand directly."
+    # 既不是文件，也不是目录，无效script_path
+      echo_fatal "Invalid script path:${script_path}"
     fi
-  else
-  # 既不是文件，也不是目录，无效script_path
-    echo_fatal "Invalid script path:${script_path}"
   fi
+
+
+
 
 }
 
@@ -1159,56 +1304,63 @@ function cmd_uninstall()
     shift
   done
 
-
-  if ${test}; then
-    TEST_ONLY=true
-  fi
-
-
-  if [ -n "${info_level}" ]; then
-    set_info_level "${info_level}"
-  fi
-
-  if [ -z "${command}" ]; then
-    echo_fatal "Command is empty. Use --help to show more information."
-  fi
-
-
-  local params=''
-  if [ -n "${command}" ]; then
-    params="${params} --command ${command}"
-  fi
-
-
-  if [ -n "${script_path}" ]; then
-    # 如果提供了脚本路径
-
-    if [ -n "${bin_path}" ]; then 
-      params="${params} --bin-path ${bin_path}"
-    fi
-    if ${no_installer}; then
-      params="${params} --no-installer"
-    fi
-    if ${all}; then
-      params="${params} --all"
-    fi
-
-    uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]}
-  elif [ -n "${bin_path}" ]; then
-    # 如果没提供脚本路径， 但bin_path不为空
-
-    uninstall_by_bin_path --path "${bin_path}" ${params}
-  elif [ -n "${command}" ]; then
-    # 如果没提供脚本路径和bin_path, 但提供了command
-
-    if ${all}; then
-      params="${params} --all"
-    fi
-
-    remove_command ${params}
+  if ${show_help}; then
+    usage_uninstall
+    exit 0
   else
-    echo_fatal "Invalid params, use --help to show more information."
+    if ${test}; then
+      TEST_ONLY=true
+    fi
+
+
+    if [ -n "${info_level}" ]; then
+      set_info_level "${info_level}"
+    fi
+
+    if [ -z "${command}" ]; then
+      echo_fatal "Command is empty. Use --help to show more information."
+    fi
+
+
+    local params=''
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
+
+
+    if [ -n "${script_path}" ]; then
+      # 如果提供了脚本路径
+
+      if [ -n "${bin_path}" ]; then 
+        params="${params} --bin-path ${bin_path}"
+      fi
+      if ${no_installer}; then
+        params="${params} --no-installer"
+      fi
+      if ${all}; then
+        params="${params} --all"
+      fi
+
+      uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]}
+    elif [ -n "${bin_path}" ]; then
+      # 如果没提供脚本路径， 但bin_path不为空
+
+      uninstall_by_bin_path --path "${bin_path}" ${params}
+    elif [ -n "${command}" ]; then
+      # 如果没提供脚本路径和bin_path, 但提供了command
+
+      if ${all}; then
+        params="${params} --all"
+      fi
+
+      remove_command ${params}
+    else
+      echo_fatal "Invalid params, use --help to show more information."
+    fi
   fi
+
+
+
 }
 
 
@@ -1227,7 +1379,8 @@ if [[ "${sub_cmd}" == 'install' ]]; then
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
   cmd_uninstall $@
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
-  echo "help!"
+  usage
+  exit 0
 else
-  echo_fatal "Unknown sub command:'${sub_cmd}'."
+  echo_fatal "Unknown sub command:'${sub_cmd}'. Use ${CMD} --help tho show help information."
 fi
