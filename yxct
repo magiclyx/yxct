@@ -705,7 +705,7 @@ function uninstall_by_script_path()
   local bin_path=
   local -a ignore_reg_list=
   local all=false
-  local no_installer=false
+  local strict=false
 
   local is_in_ignore=false
   while [ $# -gt 0 ]; do
@@ -734,8 +734,8 @@ function uninstall_by_script_path()
         all=true
       ;;
 
-      --no-installer )
-        no_installer=true
+      --strict )
+        strict=true
       ;;
 
       *)
@@ -773,12 +773,12 @@ function uninstall_by_script_path()
     if basename "${script_path}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
     # 如果文件是一个安装脚本, 直接调用脚本
       run_setup_script uninstall --path "${script_path}" ${params} ${additional}
-    elif ${no_installer}; then
-      # 如果文件不是安装脚本，但指定了--no-installer参数，尝试查找文件相同的命令，并删除
+    elif ! ${strict}; then
+      # 如果文件不是安装脚本，且没指定--strict参数，尝试查找文件相同的命令，并删除
       remove_same_file --path "${script_path}" ${all_params} ${additional}
     else
-      # 如果文件不上是安装脚本，未指定了--no-installer参数，报错
-      echo_fatal "Script path is a file, but not an uninstall script. Use '--no-installer' try to delete command with the same name directly."
+      # 如果文件不上是安装脚本，指定了'--strict'参数，报错
+      echo_fatal "Script path is a file, but the file is not an uninstall script. Remove '--strict' try to uninstall a command with the same file directly."
     fi
   elif [ -d "${script_path}" ]; then
   # 如果脚本路径是一个目录
@@ -786,8 +786,8 @@ function uninstall_by_script_path()
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
       run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${params} ${additional}
-    elif ${no_installer}; then
-    # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
+    elif ! ${strict}; then
+    # 没找到那个安装脚本，且没指定--strict参数, 查看是否是单脚本APP
       local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
       if [ -n "${singl_app_name}" ]; then
         remove_same_file --path "${script_path}/${singl_app_name}" ${all_params} ${additional}
@@ -796,8 +796,8 @@ function uninstall_by_script_path()
         echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
       fi
     else
-    # 如果文件不是安装脚本，未指定了--no-installer参数，报错
-      echo_fatal "Can not find a uninstall script. Use '--no-installer' try to delete command with the same file directly."
+    # 如果文件不是安装脚本，且没指定--strict参数，报错
+      echo_fatal "Can not find a uninstall script. Remove '--strict' try to delete command with the same file directly."
     fi
   else
   # 既不是文件，也不是目录，无效script_path
@@ -895,7 +895,6 @@ cat <<EOF
 EOF
 }
 
-#:~ TODO --script-path 直接改名叫--path
 function usage_install()
 {
 cat <<EOF
@@ -906,14 +905,13 @@ cat <<EOF
   Show this help information
 
   The following options are availiable:
-  --path <path>             Install script or the folder that contains an installation script.
-                            If '--no-installerr' is used. '--script-path' can also point to a command
-                            script directly.
+  --path <path>             1. Point to an install script or a folder that contains an install script.
+                            2. Point to a command file, ${CMD} will try to install the command to system.
 
-  --no-installer            If used. '--script-path' can point to a command path or a foler contains a
-                            single command file.  ${CMD} will copy the command to destination directly.
+  --strict                  If used. '--path' must point to an install script or a folder contains an
+                            install script. If '--path' point to a command file, ${CMD} will raise an error.
 
-  --ignore <reg1> <reg2>..  If '--script-path' point to a folder contains mutiple script but no install
+  --ignore <reg1> <reg2>..  If '=-path' point to a folder contains mutiple script but no install
                             script. ${CMD} will not be able to determine which script to install.
                             use '--ignore' and indicate regulars expression to ignore useless files.
   
@@ -959,16 +957,13 @@ cat <<EOF
   Show this help information
 
   The following options are availiable:
-  --path <path>             Uninstall script or the folder that contains an uninstallation script.
-                            If '--no-installerr' is used. '--script-path' can also point to a command
-                            script directly, ${CMD} will search the command on system and try to
-                            delete it.
+  --path <path>             1. point to an uninstall script or a folder that contains an uninstall script.
+                            2. point to a command file, ${CMD} will try to uninstall a same command on system.
 
-  --no-installer            If used. '--script-path' can point to a command path or a foler contains a
-                            single command file.  ${CMD} will search the command on system and try to 
-                            delete it,
+  --strict                  If used. '--path' must point to an uninstall script or a folder contains an uninstall
+                            script. If '--path' point to a command, ${CMD} will raise an error,
 
-  --ignore <reg1> <reg2>..  If '--script-path' point to a folder contains mutiple script but no uninstall
+  --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but no uninstall
                             script.  ${CMD} will not be able to determine which script to uninstall.
                             Use '--ignore' and indicate regulars expression to ignore useless files.
   
@@ -1019,7 +1014,7 @@ function cmd_install()
   local bin_path=
   local -a ignore_reg_list=
 
-  local no_installer=false
+  local strict=false
   local force=false
   local test=false
 
@@ -1055,8 +1050,8 @@ function cmd_install()
         force=true
       ;;
 
-      --no-installer )
-        no_installer=true
+      --strict )
+        strict=true
       ;;
 
       --bin )
@@ -1105,7 +1100,7 @@ function cmd_install()
         if ${is_in_ignore}; then
           ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
         else
-          echo_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
+          echo_fatal "Unknown parameters $1. Use '${CMD} info --help' to show help information"
         fi
       ;;
     esac
@@ -1157,15 +1152,15 @@ function cmd_install()
       if echo $(basename ${script_path}) | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
       # 如果文件是一个安装脚本, 直接调用脚本
         run_setup_script install --path "${script_path}" ${params}
-      elif ${no_installer}; then
-      # 如果没有找到安装脚本，但使用了--no-installer参数, 则直接安装文件
+      elif ! ${strict}; then
+      # 如果没有找到安装脚本，且没指定--strict参数, 则直接安装文件
         local force_params=''
         if ${force}; then
           force_params='--force'
         fi
         install_file --file "${script_path}" "${force_params}" ${params}
       else
-        echo_fatal "Can not find a install script. Use '--no-installer' try to install from a script file directly"
+        echo_fatal "Can not find a install script. Remove '--strict' try to install from a command file directly"
       fi
     elif [ -d "${script_path}" ]; then
       # 如果脚本路径是一个目录
@@ -1174,8 +1169,8 @@ function cmd_install()
       if [ -n "${install_script_filename}" ]; then
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
         run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
-      elif ${no_installer}; then
-        # 没找到那个安装脚本，但指定了--no-installer.查看是否是单脚本APP
+      elif ! ${strict}; then
+        # 没找到那个安装脚本，且没指定--strict参数. 查看是否是单脚本APP
         local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
         if [ -n "${singl_app_name}" ]; then
           local force_params=''
@@ -1188,8 +1183,8 @@ function cmd_install()
           echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
         fi
       else
-      # 如果文件是安装脚本，未指定了--no-installer参数，报错
-        echo_fatal "Can not find a install script. Use '--no-installer' try to install file as conmand directly."
+      # 如果文件是安装脚本，且制定了'--strict'参数，报错
+        echo_fatal "Can not find a install script. Remove '--strict' try to install command from command file directly."
       fi
     else
     # 既不是文件，也不是目录，无效script_path
@@ -1208,7 +1203,7 @@ function cmd_uninstall()
   local bin_path=
   local -a ignore_reg_list=
 
-  local no_installer=false
+  local strict=false
   local all=false
   local test=false
 
@@ -1235,8 +1230,8 @@ function cmd_uninstall()
         script_path=$1
       ;;
 
-      --no-installer )
-        no_installer=true
+      --strict )
+        strict=true
       ;;
 
       --all )
@@ -1294,7 +1289,7 @@ function cmd_uninstall()
         if ${is_in_ignore}; then
           ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
         else
-          echo_fatal "Unknown params $1. Use '${CMD} --help' to show help information"
+          echo_fatal "Unknown parameter $1. Use '${CMD} --help' to show help information"
         fi
       ;;
     esac
@@ -1331,8 +1326,8 @@ function cmd_uninstall()
       if [ -n "${bin_path}" ]; then 
         params="${params} --bin-path ${bin_path}"
       fi
-      if ${no_installer}; then
-        params="${params} --no-installer"
+      if ${strict}; then
+        params="${params} --strict"
       fi
       if ${all}; then
         params="${params} --all"
@@ -1352,7 +1347,7 @@ function cmd_uninstall()
 
       remove_command ${params}
     else
-      echo_fatal "Invalid params, use --help to show more information."
+      echo_fatal "Invalid parameters, use --help to show more information."
     fi
   fi
 
