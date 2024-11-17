@@ -133,7 +133,7 @@ function echo_fatal()
   local red=$(tput setaf 1);
   local reset=$(tput sgr0);
   
-  (>&2 echo "${red}Fatal:${str}${reset}");
+  (>&2 echo "${red}Fatal:${1}${reset}");
   exit 1;
 }
 
@@ -160,7 +160,7 @@ function echo_err()
   local magenta=$(tput setaf 5);
   local reset=$(tput sgr0);
 
-  (>&2 echo "${magenta}${str}${reset}")
+  (>&2 echo "${magenta}${1}${reset}")
 }
 
 function yx_str_checkfmt()
