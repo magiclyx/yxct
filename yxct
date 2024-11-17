@@ -907,7 +907,7 @@ cat <<EOF
   Show this help information
 
   The following options are availiable:
-  --script-path <path>      Install script or the folder that contains an installation script.
+  --path <path>             Install script or the folder that contains an installation script.
                             If '--no-installerr' is used. '--script-path' can also point to a command
                             script directly.
 
@@ -960,7 +960,7 @@ cat <<EOF
   Show this help information
 
   The following options are availiable:
-  --script-path <path>      Uninstall script or the folder that contains an uninstallation script.
+  --path <path>             Uninstall script or the folder that contains an uninstallation script.
                             If '--no-installerr' is used. '--script-path' can also point to a command
                             script directly, ${CMD} will search the command on system and try to
                             delete it.
@@ -1042,7 +1042,7 @@ function cmd_install()
 
 		case $1 in
 
-      --script-path )
+      --path )
         shift
         script_path=$1
       ;;
@@ -1233,7 +1233,7 @@ function cmd_uninstall()
 
 		case $1 in
 
-      --script-path )
+      --path )
         shift
         script_path=$1
       ;;
