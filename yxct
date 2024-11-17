@@ -447,7 +447,9 @@ function strcontains()
 function run_setup_script()
 {
   local script_path=
+  local bin_path=
   local additional=
+  local all=false
 
   local option=$1
   if strcontains "${option}" 'install' --ignorecase; then
@@ -467,6 +469,16 @@ function run_setup_script()
         script_path=$1
       ;;
 
+      --bin-path )
+        shift
+        bin_path=$1
+      ;;
+
+      --all )
+        all=true
+      ;;
+
+
       *)
         additional="${additional} $1"
     esac
@@ -478,14 +490,58 @@ function run_setup_script()
     echo_fatal "setup script not exist :${script_path}"
   fi
 
-  pushd $(dirname "${script_path}") > /dev/null
-  yx_eval "${script_path} ${option} ${additional}"
-  result="$?"
-  popd > /dev/null
+  local result
+  if [ -n "${bin_path}" ]; then
+    pushd $(dirname "${script_path}") > /dev/null
+    yx_eval "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+    result="$?"
+    popd > /dev/null
 
-  if [[ "${result}" != '0' ]]; then
-    echo_fatal "Failed to run setup script: ${script_path}"
+    if [[ "${result}" != '0' ]]; then
+      echo_fatal "Failed to run setup script: ${script_path}"
+    fi
+  else
+
+    # 提前额外验证一下， while循环里的验证不能抱错误警告
+    if ! $(which "${command}" > /dev/null); then
+      echo_fatal "Can not find the command:${command}"
+    fi
+
+    while true; do
+
+      local finded_exec_path=$(which "${command}")
+      if [ -z "${finded_exec_path}" ]; then
+        break
+      fi
+      
+      local bin_path=$(dirname "${finded_exec_path}")
+
+      pushd $(dirname "${script_path}") > /dev/null
+      yx_eval "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+      result="$?"
+      popd > /dev/null    
+
+      if [[ "${result}" != '0' ]]; then
+        echo_fatal "Failed to run setup script: ${script_path}"
+      fi
+
+      if ! ${all}; then
+        break
+      fi
+    done
+
   fi
+
+
+
+  # pushd $(dirname "${script_path}") > /dev/null
+  # yx_eval "${script_path} ${option} ${additional}"
+  # result="$?"
+  # popd > /dev/null
+
+  # if [[ "${result}" != '0' ]]; then
+  #   echo_fatal "Failed to run setup script: ${script_path}"
+  # fi
 
   return ${result}
 }
@@ -520,14 +576,19 @@ function remove_command()
     echo_fatal "Command is empty !"
   fi
 
+  # 提前额外验证一下， while循环里的验证不能抱错误警告
+  if ! $(which "${command}" > /dev/null); then
+    echo_fatal "Can not find the command:${command}"
+  fi
+
   while true; do
     local finded_exec_path=$(which "${command}")
     if [ -z "${finded_exec_path}" ]; then
       break
     fi
 
-    if ! [ -f ${finded_exec_path} ]; then
-     echo_fatal "Can not find a command named:${filename}"
+    if ! [ -w ${finded_exec_path} ]; then
+     echo_fatal "Have not permission to remove the file:${finded_exec_path}"
     fi
 
     if [ -n "${hash}" ]; then
@@ -549,8 +610,12 @@ function remove_command()
   done
 }
 
-# 根据一个可执行文件，查找安装的同名文件,并卸载
-function remove_same_file()
+# 根据一个可执行文件，查找安装的命令，并卸载
+# 可执行文件仅用于 hash验证
+# 查找方式
+# 1. which ${command}
+# 2. bin_path/command 或 bin_path/$(basename command)
+function remove_by_hash_file()
 {
     local file_path=
     local bin_path=
@@ -703,9 +768,10 @@ function uninstall_by_script_path()
   local script_path=
   local additional=
   local bin_path=
+  local command=
+
   local -a ignore_reg_list=
   local all=false
-  local strict=false
 
   local is_in_ignore=false
   while [ $# -gt 0 ]; do
@@ -718,6 +784,11 @@ function uninstall_by_script_path()
       --path )
         shift
         script_path=$1
+      ;;
+
+      --command )
+        shift
+        command=$1
       ;;
 
       --bin-path )
@@ -734,10 +805,6 @@ function uninstall_by_script_path()
         all=true
       ;;
 
-      --strict )
-        strict=true
-      ;;
-
       *)
         if ${is_in_ignore}; then
           ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
@@ -752,33 +819,36 @@ function uninstall_by_script_path()
     echo_fatal "Script path is empty."
   fi
 
-  local all_params=''
-  if "${all}"; then
-    all_params='--all'
-  fi
+  # local all_params=''
+  # if "${all}"; then
+  #   all_params='--all'
+  # fi
 
   local params=''
-  
-  # --bin-path
-  if [ -z "${bin_path}" ]; then
-    local command_path=$(which "${command}")
-    if [ -n "${command_path}" ]; then
-      bin_path=$(dirname "${command_path}")
-      params="--bin-path ${bin_path}"
-    fi
+  #--command
+  if [ -n "${command}" ]; then
+    params="${params} --command ${command}"
   fi
 
+  if [ -n "${bin_path}" ]; then
+    params="${params} --bin-path ${bin_path}"
+  fi
+
+  if ${all}; then
+    params="${params} --all"
+  fi
+  
+
   if [ -f "${script_path}" ]; then
+
+  local script_file_name=$(basename "${script_path}")
   # 如果脚本路径是一个文件
-    if basename "${script_path}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
+    if echo "${script_file_name}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
     # 如果文件是一个安装脚本, 直接调用脚本
       run_setup_script uninstall --path "${script_path}" ${params} ${additional}
-    elif ! ${strict}; then
-      # 如果文件不是安装脚本，且没指定--strict参数，尝试查找文件相同的命令，并删除
-      remove_same_file --path "${script_path}" ${all_params} ${additional}
     else
-      # 如果文件不上是安装脚本，指定了'--strict'参数，报错
-      echo_fatal "Script path is a file, but the file is not an uninstall script. Remove '--strict' try to uninstall a command with the same file directly."
+      # 如果文件不是安装脚本，尝试使用 command 和 bin_path卸载。 并用这个文件做hash验证并卸载，并删除
+      remove_by_hash_file --path "${script_path}" ${params} ${additional}
     fi
   elif [ -d "${script_path}" ]; then
   # 如果脚本路径是一个目录
@@ -786,18 +856,16 @@ function uninstall_by_script_path()
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
       run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${params} ${additional}
-    elif ! ${strict}; then
-    # 没找到那个安装脚本，且没指定--strict参数, 查看是否是单脚本APP
+    else
+    # 没找到那个安装脚本，查看是否是单脚本APP
       local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
       if [ -n "${singl_app_name}" ]; then
-        remove_same_file --path "${script_path}/${singl_app_name}" ${all_params} ${additional}
+        # 如果文件夹下只找到一个文件，尝试使用 command 和 bin_path卸载。并使用这个文件做 hash 验证.
+        remove_by_hash_file --path "${script_path}/${singl_app_name}" ${params} ${additional}
       else
         # 如果不是单脚本APP, 不知道如何安装
         echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
       fi
-    else
-    # 如果文件不是安装脚本，且没指定--strict参数，报错
-      echo_fatal "Can not find a uninstall script. Remove '--strict' try to delete command with the same file directly."
     fi
   else
   # 既不是文件，也不是目录，无效script_path
@@ -891,7 +959,7 @@ cat <<EOF
   uninstall:    Uninstall a command tool.
 
   Other options
-  Use '${CMD} --help' show this help information
+  Use '${CMD} uninstall --help' show this help information
 EOF
 }
 
@@ -908,11 +976,8 @@ cat <<EOF
   --path <path>             1. Point to an install script or a folder that contains an install script.
                             2. Point to a command file, ${CMD} will try to install the command to system.
 
-  --strict                  If used. '--path' must point to an install script or a folder contains an
-                            install script. If '--path' point to a command file, ${CMD} will raise an error.
-
-  --ignore <reg1> <reg2>..  If '=-path' point to a folder contains mutiple script but no install
-                            script. ${CMD} will not be able to determine which script to install.
+  --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no install
+                            script there. ${CMD} will not be able to determine which script to install.
                             use '--ignore' and indicate regulars expression to ignore useless files.
   
   --force                   If an existing file on bin-path, remove it.
@@ -936,14 +1001,8 @@ cat <<EOF
                             The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
                             or a number greater than 0.
 
-                            You can use ${CMD} config to get or set it as the global value. 
-                              ${CMD} config --write --key info.level --val debug
-                              ${CMD} config --read --key info.level
-
-                            Use '${CMD} config --help' to see more information.
-
   Other options
-  Use '${CMD} --help' show all help information
+  Use '${CMD} install --help' show all help information
 EOF
 }
 
@@ -960,28 +1019,25 @@ cat <<EOF
   --path <path>             1. point to an uninstall script or a folder that contains an uninstall script.
                             2. point to a command file, ${CMD} will try to uninstall a same command on system.
 
-  --strict                  If used. '--path' must point to an uninstall script or a folder contains an uninstall
-                            script. If '--path' point to a command, ${CMD} will raise an error,
-
-  --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but no uninstall
-                            script.  ${CMD} will not be able to determine which script to uninstall.
+  --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no uninstall
+                            script there.  ${CMD} will not be able to determine which script to uninstall.
                             Use '--ignore' and indicate regulars expression to ignore useless files.
   
   --force                   If an existing file on bin-path, remove it.
 
-  --all                     If command installed on mutiple path and not indicate a bin path,
+  --all                     If command installed on mutiple path and not indicate a target,
                             ${CMD} will try to delete all of them.
 
 
-  The followint options indicate destination path:
+  The followint options indicate target path:
   --bin                     The command will be uninstall from '/bin'
   --sbin                    The command will be uninstall from '/sbin'
   --usr-bin                 The command will be uninstall from '/usr/bin'
   --usr-local-bin           The command will be uninstall from '/usr/local/bin'
   --usr-local-sbin          The command will be uninstall from '/usr/local/sbin'
-  --custom-dest <path>      Indicate a destination path as the bin path.
+  --custom-dest <path>      Indicate a target path as the bin path.
 
-  If indicate a destination path and the command not installed on that path, ${CMD} will do
+  If indicate a target path and the command not installed on that path, ${CMD} will do
   nothing and raise an error.
 
 
@@ -991,12 +1047,6 @@ cat <<EOF
   --info-level              Command output level. 
                             The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
                             or a number greater than 0.
-
-                            You can use ${CMD} config to get or set it as the global value. 
-                              ${CMD} config --write --key info.level --val debug
-                              ${CMD} config --read --key info.level
-
-                            Use '${CMD} config --help' to see more information.
 
   Other options
   Use '${CMD} --help' show all help information
@@ -1014,7 +1064,6 @@ function cmd_install()
   local bin_path=
   local -a ignore_reg_list=
 
-  local strict=false
   local force=false
   local test=false
 
@@ -1048,10 +1097,6 @@ function cmd_install()
       --ignore )
         is_in_ignore=true
         force=true
-      ;;
-
-      --strict )
-        strict=true
       ;;
 
       --bin )
@@ -1134,6 +1179,11 @@ function cmd_install()
     fi
 
     local params=''
+
+    # --command
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
     
     # --bin-path
     if [ -n "${bin_path}" ]; then
@@ -1141,26 +1191,30 @@ function cmd_install()
     fi
 
 
-    # --command
-    if [ -n "${command}" ]; then
-      params="${params} --command ${command}"
-    fi
-
 
     if [ -f "${script_path}" ]; then
     # 如果脚本路径是一个文件
-      if echo $(basename ${script_path}) | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
+
+      local script_file_name=$(basename ${script_path})
+      if echo "${script_file_name}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
       # 如果文件是一个安装脚本, 直接调用脚本
         run_setup_script install --path "${script_path}" ${params}
-      elif ! ${strict}; then
-      # 如果没有找到安装脚本，且没指定--strict参数, 则直接安装文件
+      else
+      # 如果文件是不是一个安装脚本
+
         local force_params=''
         if ${force}; then
           force_params='--force'
         fi
-        install_file --file "${script_path}" "${force_params}" ${params}
-      else
-        echo_fatal "Can not find a install script. Remove '--strict' try to install from a command file directly"
+
+        if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
+        # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+          install_file --file "${script_path}" "${force_params}" ${params}
+        else
+        # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
+          install_file --file "${script_path}" "${force_params}" ${params}
+        fi
+
       fi
     elif [ -d "${script_path}" ]; then
       # 如果脚本路径是一个目录
@@ -1169,22 +1223,29 @@ function cmd_install()
       if [ -n "${install_script_filename}" ]; then
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
         run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
-      elif ! ${strict}; then
-        # 没找到那个安装脚本，且没指定--strict参数. 查看是否是单脚本APP
+      else
+
         local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
         if [ -n "${singl_app_name}" ]; then
+        # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，只剩下一个文件
+
           local force_params=''
           if ${force}; then
             force_params='--force'
           fi
-          install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+           
+          if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
+          # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+            install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+          else
+          # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
+            install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+          fi
         else
-          # 如果不是单脚本APP, 不知道如何安装
+          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
           echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
         fi
-      else
-      # 如果文件是安装脚本，且制定了'--strict'参数，报错
-        echo_fatal "Can not find a install script. Remove '--strict' try to install command from command file directly."
+
       fi
     else
     # 既不是文件，也不是目录，无效script_path
@@ -1203,7 +1264,6 @@ function cmd_uninstall()
   local bin_path=
   local -a ignore_reg_list=
 
-  local strict=false
   local all=false
   local test=false
 
@@ -1228,10 +1288,6 @@ function cmd_uninstall()
       --path )
         shift
         script_path=$1
-      ;;
-
-      --strict )
-        strict=true
       ;;
 
       --all )
@@ -1325,9 +1381,6 @@ function cmd_uninstall()
 
       if [ -n "${bin_path}" ]; then 
         params="${params} --bin-path ${bin_path}"
-      fi
-      if ${strict}; then
-        params="${params} --strict"
       fi
       if ${all}; then
         params="${params} --all"
