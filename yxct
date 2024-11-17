@@ -668,9 +668,8 @@ function install_file()
     echo_fatal "Can not read file:${file_path}"
   fi
 
-
-  if [ -z "${bin_path}" ]; then
-    bin_path="${DEFAULT_BIN_PATH}"
+  if [ -z ${bin_path} ]; then
+    echo_fatal "destination path is empty."
   fi
 
   if [ -z "${command}" ]; then
@@ -1134,20 +1133,18 @@ function cmd_install()
       echo_fatal "Command is empty. Use --help to show more information."
     fi
 
+
+    if [ -z "${bin_path}" ]; then
+      bin_path="${DEFAULT_BIN_PATH}"
+    fi
+
     local params=''
     
     # --bin-path
     if [ -n "${bin_path}" ]; then
       params="${params} --bin-path ${bin_path}"
-    else
-      if [ -n "${command}" ]; then
-        local command_path=$(which "${command}")
-        if [ -n "${command_path}" ]; then
-          bin_path=$(dirname "${command_path}")
-          params="--bin-path ${bin_path}"
-        fi
-      fi
     fi
+
 
     # --command
     if [ -n "${command}" ]; then
