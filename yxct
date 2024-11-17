@@ -1063,6 +1063,7 @@ function cmd_install()
   local script_path=
   local bin_path=
   local -a ignore_reg_list=
+  local additional=
 
   local force=false
   local test=false
@@ -1145,7 +1146,7 @@ function cmd_install()
         if ${is_in_ignore}; then
           ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
         else
-          echo_fatal "Unknown parameters $1. Use '${CMD} info --help' to show help information"
+          additional="${additional} $1"
         fi
       ;;
     esac
@@ -1198,7 +1199,7 @@ function cmd_install()
       local script_file_name=$(basename ${script_path})
       if echo "${script_file_name}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
       # 如果文件是一个安装脚本, 直接调用脚本
-        run_setup_script install --path "${script_path}" ${params}
+        run_setup_script install --path "${script_path}" ${params} ${additional}
       else
       # 如果文件是不是一个安装脚本
 
@@ -1222,7 +1223,7 @@ function cmd_install()
       local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
       if [ -n "${install_script_filename}" ]; then
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-        run_setup_script install --path "${script_path}/${install_script_filename}" ${params}
+        run_setup_script install --path "${script_path}/${install_script_filename}" ${params} ${additional}
       else
 
         local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
@@ -1263,6 +1264,7 @@ function cmd_uninstall()
 {
   local bin_path=
   local -a ignore_reg_list=
+  local additional=
 
   local all=false
   local test=false
@@ -1345,7 +1347,7 @@ function cmd_uninstall()
         if ${is_in_ignore}; then
           ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
         else
-          echo_fatal "Unknown parameter $1. Use '${CMD} --help' to show help information"
+          additional="${additional} $1"
         fi
       ;;
     esac
@@ -1386,7 +1388,7 @@ function cmd_uninstall()
         params="${params} --all"
       fi
 
-      uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]}
+      uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]} ${additional}
     elif [ -n "${bin_path}" ]; then
       # 如果没提供脚本路径， 但bin_path不为空
 

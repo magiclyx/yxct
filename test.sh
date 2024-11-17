@@ -5,18 +5,13 @@ TestPath='/home/emanon/Desktop/share/yxct'
 sudo rm -f "/usr/local/sbin/yxct"
 
 # additional_params="--info-level verbose --test"
-additional_params="--info-level verbose"
+additional_params="--info-level verbose --nono abc"
 
-# sudo which yxct
-
-# if ! sudo which yxct; then
-#   echo "not exist"
-# fi
 
 # exit 0
 
-function check_yxct_not_exist() { if sudo which yxct > /dev/null; then (>&2 echo "$(tput setaf 1)Fatal!!!!$(tput sgr0)"); fi; }
-function check_yxct_exist() { if ! sudo which yxct > /dev/null; then (>&2 echo "$(tput setaf 1)Fatal!!!!$(tput sgr0)"); fi; }
+function check_yxct_not_exist() { if sudo which yxct > /dev/null; then (>&2 echo "$(tput setaf 1)Fatal!!!! yxct not exist$(tput sgr0)"); fi; }
+function check_yxct_exist() { if ! sudo which yxct > /dev/null; then (>&2 echo "$(tput setaf 1)Fatal!!!! yxct exist$(tput sgr0)"); fi; }
 
 
 # sudo ./yxct install yxct --usr-local-sbin --path "${TestPath}/.yxct.setup.py" ${additional_params}

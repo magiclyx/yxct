@@ -71,10 +71,12 @@ if __name__ == "__main__":
 	parser_install.add_argument('--bin-path', type=str)
 	parser_install.add_argument('--command', type=str)
 	parser_install.set_defaults(func=install)
+	parser_install.add_argument('--nono', type=str)
 	
 	parser_uninstall = subparsers.add_parser('uninstall')
 	parser_uninstall.add_argument('--bin-path', type=str)
 	parser_uninstall.add_argument('--command', type=str)
+	parser_uninstall.add_argument('--nono', type=str)
 	parser_uninstall.set_defaults(func=uninstall)
 	
 #	args = parser.parse_args('install --bin-path /usr/local/sbin/ --command yxct'.split())

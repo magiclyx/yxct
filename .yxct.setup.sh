@@ -27,6 +27,7 @@ function cmd_install()
     local script_path=$(pwd)
     local bin_path=
     local command=
+    local nono=
 
     while [ $# -gt 0 ]; do
 		case $1 in
@@ -41,10 +42,10 @@ function cmd_install()
         command=$1
       ;;
 
-      # --script-path )
-      #   shift
-      #   script_path=$1
-      # ;;
+      --nono )
+        shift
+        nono=$1
+      ;;
 
       *)
         echo_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
@@ -60,6 +61,14 @@ function cmd_install()
 
   if [ -z "${bin_path}" ]; then
     echo_fatal "bin path is empty"
+  fi
+
+  if [ -z "${nono}" ]; then
+    echo_fatal "nono is not here"
+  fi
+
+  if [[ "${nono}" != 'abc' ]]; then
+    echo_fatal "Invalid nono: ${nono}"
   fi
 
   if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
@@ -80,6 +89,7 @@ function cmd_uninstall()
 
   local command=
   local bin_path=
+  local nono=
 
   while [ $# -gt 0 ]; do
 		case $1 in
@@ -92,6 +102,11 @@ function cmd_uninstall()
       --command )
         shift
         command=$1
+      ;;
+
+      --nono )
+        shift
+        nono=$1
       ;;
 
       *)
@@ -108,6 +123,14 @@ function cmd_uninstall()
 
   if [ -z "${bin_path}" ]; then
     echo_fatal "bin path is empty"
+  fi
+
+  if [ -z "${nono}" ]; then
+    echo_fatal "nono is not here"
+  fi
+
+  if [[ "${nono}" != 'abc' ]]; then
+    echo_fatal "Invalid nono: ${nono}"
   fi
 
   if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
