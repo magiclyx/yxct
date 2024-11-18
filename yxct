@@ -492,6 +492,7 @@ function run_setup_script()
 
   local result
   if [ -n "${bin_path}" ]; then
+  # 如果给了bin_path, 则按照 bin_path 给卸载脚本
     pushd $(dirname "${script_path}") > /dev/null
     yx_eval "${script_path} ${option} --bin-path ${bin_path} ${additional}"
     result="$?"
@@ -500,13 +501,9 @@ function run_setup_script()
     if [[ "${result}" != '0' ]]; then
       echo_fatal "Failed to run setup script: ${script_path}"
     fi
-  else
-
-    # 提前额外验证一下， while循环里的验证不能抱错误警告
-    if ! $(which "${command}" > /dev/null); then
-      echo_fatal "Can not find the command:${command}"
-    fi
-
+  elif which "${command}" > /dev/null; then
+  # else
+  # 如果能找到 command, 根据command获得bin-path
     while true; do
 
       local finded_exec_path=$(which "${command}")
@@ -529,7 +526,17 @@ function run_setup_script()
         break
       fi
     done
+  
+  else
+    # 如果没找到command, 完全不知道 --bin-path , 直接调用脚本
+    pushd $(dirname "${script_path}") > /dev/null
+    yx_eval "${script_path} ${option} ${additional}"
+    result="$?"
+    popd > /dev/null
 
+    if [[ "${result}" != '0' ]]; then
+      echo_fatal "Failed to run setup script: ${script_path}"
+    fi
   fi
 
 
