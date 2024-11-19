@@ -10,11 +10,7 @@ USR_LOCAL_BIN_PATH='/usr/local/bin'
 USR_LOCAL_SBIN_PATH='/usr/local/sbin'
 DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
-CP=/usr/bin/cp
-RM=/usr/bin/rm
 
-BASH=/bin/bash
-ENV=/usr/bin/env
 
 
 
@@ -114,6 +110,68 @@ function yx_eval()
 ###########################################################
 # YXLib
 ###########################################################
+
+function os_type()
+{
+	
+	local release=''
+	
+	if [ -n "${OSTYPE}" ]; then
+		if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+			release="linux"
+		elif [[ "${OSTYPE}" == "bsd"* ]]; then 
+			release="bsd"
+		elif [[ "${OSTYPE}" == "freebsd"* ]]; then 
+			release="freebsd"
+		elif [[ "${OSTYPE}" == "darwin"* ]]; then 
+			release="osx"
+		elif [[ "${OSTYPE}" == "solaris"* ]]; then 
+			release="solaris"
+		elif [[ "${OSTYPE}" == "cygwin" ]]; then 
+			# POSIX compatibility layer and Linux environment emulation for Windows 
+			release="cygwin"
+		elif [[ "${OSTYPE}" == "msys" ]]; then 
+			# Lightweight shell and GNU utilities compiled for Windows (part of MinGW) 
+			release="msys"
+		elif [[ "${OSTYPE}" == "win32" ]]; then 
+			# I'm not sure this can happen. 
+			release="windows"
+		else 
+			release="unknown"
+		fi
+	else
+		
+		# $OSTAYPE not recognized by the older shells (such as Bourne shell).
+		# Use `uname` instead
+		
+		case $(uname | tr '[:upper:]' '[:lower:]') in
+			linux*)
+				release='linux'
+			;;
+			freebsd*)
+				release='freebsd'
+			;;
+			darwin*)
+				release="osx"
+			;;
+			SunOS*)
+				release="solaris"
+			;;
+			msys*)
+				release="msys"
+			;;
+			windows*)
+				release="windows"
+			;;
+			*)
+				release="unknown"
+			;;
+		esac
+	fi
+	
+
+	echo "${release}"
+}
 
 function echo_verbose()
 {
@@ -218,6 +276,20 @@ function strcontains()
 	fi
 	
 	return 1
+}
+
+function yx_shell_type()
+{
+  local shell_type=
+  if [ -n $"{ZSH_VERSION}" ]; then
+    shell_type='zsh'
+  elif [ -n $"{BASH_VERSION}" ]; then
+    shell_type='bash'
+  else
+    :
+  fi
+
+  echo "${shell_type}"
 }
 
 ###########################################################
@@ -430,9 +502,15 @@ function strcontains()
 
 	
 	if ${ignorecase}; then
-		for e in $(echo "${arr_str}"); do
-			[[ "${e^^}" == "${str^^}" ]] && return 0
-		done
+    if [ $(yx_shell_type) == 'bash' ]; then
+      for e in $(echo "${arr_str}"); do
+        [[ "${e^^}" == "${str^^}" ]] && return 0
+      done
+    else
+      for e in $(echo "${arr_str}"); do
+        [[ "${e:u}" == "${str:u}" ]] && return 0
+      done
+    fi
 	else
 		for e in $(echo "${arr_str}"); do
       echo "compare between ${e} and ${str}"
@@ -762,7 +840,7 @@ function install_file()
   # 之前已经验证过 force了，这里仍然判断force参数， 避免多脚本同时执行
   local force_params=''
   if ${force}; then
-    force_params='--force'
+    force_params='-f'
   fi
 
   echo_cmd "${CP} ${force_params} ${file_path} ${bin_path}/${command}"
@@ -972,6 +1050,39 @@ EOF
 
 function usage_install()
 {
+
+  function __usage_install_destination_info()
+  {
+    if [ "$(os_type)" == 'osx' ]; then
+cat << EOF
+  --usr-local-bin           The command will be install to'/usr/local/bin' (It's the default optional)
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install
+        the command to '/usr/local/bin' as default.
+  
+  Un-support destination options on OSX:
+  --bin                     On OSX, this option will point to '/usr/loca/bin'
+  --sbin                    On OSX, this option will point to '/usr/loca/bin'
+  --usr-bin                 On OSX, this option will point to '/usr/loca/bin'
+  --usr-local-sbin          On OSX, this option will point to '/usr/loca/bin'
+EOF
+    else
+cat << EOF
+  --bin                     The command will be install to '/bin'
+  --sbin                    The command will be install to '/sbin'
+  --usr-bin                 The command will be install to '/usr/bin'
+  --usr-local-bin           The command will be install to '/usr/local/bin'
+  --usr-local-sbin          The command will be install to '/usr/local/sbin'
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install the
+        command to '/usr/local/bin' as default.
+EOF
+    fi
+  }
+
+
 cat <<EOF
   usage: ${CMD} install <command> <optional>
   Install a command
@@ -991,15 +1102,8 @@ cat <<EOF
 
 
   The followint options indicate destination path:
-  --bin                     The command will be install to '/bin'
-  --sbin                    The command will be install to '/sbin'
-  --usr-bin                 The command will be install to '/usr/bin'
-  --usr-local-bin           The command will be install to '/usr/local/bin'
-  --usr-local-sbin          The command will be install to '/usr/local/sbin'
-  --custom-dest <path>      Indicate a custom path as destination.
-
-  If none of the above destination paths are specified, ${CMD} will install the command to '/usr/local/bin' as default.
-
+$(__usage_install_destination_info)
+  
 
   The followint options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
@@ -1015,6 +1119,38 @@ EOF
 
 function usage_uninstall()
 {
+
+  function __usage_install_destination_info()
+  {
+    if [ "$(os_type)" == 'osx' ]; then
+cat << EOF
+  --usr-local-bin           The command will be uninstall from '/usr/local/bin' (It's the default optional)
+  --custom-dest <path>      Indicate a custom path as target path.
+
+  Note: If indicate a target path but the command not installed on that path, ${CMD} will do
+        nothing and raise an error.
+  
+  Un-support target options on OSX:
+  --bin                     On OSX, this option will point to '/usr/loca/bin'
+  --sbin                    On OSX, this option will point to '/usr/loca/bin'
+  --usr-bin                 On OSX, this option will point to '/usr/loca/bin'
+  --usr-local-sbin          On OSX, this option will point to '/usr/loca/bin'
+EOF
+    else
+cat << EOF
+  --bin                     The command will be uninstall from '/bin'
+  --sbin                    The command will be uninstall from '/sbin'
+  --usr-bin                 The command will be uninstall from '/usr/bin'
+  --usr-local-bin           The command will be uninstall from '/usr/local/bin'
+  --usr-local-sbin          The command will be uninstall from '/usr/local/sbin'
+  --custom-dest <path>      Indicate a custom path as target.
+
+  Note: If indicate a target path but the command not installed on that path, ${CMD} will do
+        nothing and raise an error.
+EOF
+    fi
+  }
+
 cat <<EOF
   usage: ${CMD} uninstall <command> <optional>
   Uninstall a command
@@ -1037,15 +1173,7 @@ cat <<EOF
 
 
   The followint options indicate target path:
-  --bin                     The command will be uninstall from '/bin'
-  --sbin                    The command will be uninstall from '/sbin'
-  --usr-bin                 The command will be uninstall from '/usr/bin'
-  --usr-local-bin           The command will be uninstall from '/usr/local/bin'
-  --usr-local-sbin          The command will be uninstall from '/usr/local/sbin'
-  --custom-dest <path>      Indicate a target path as the bin path.
-
-  If indicate a target path and the command not installed on that path, ${CMD} will do
-  nothing and raise an error.
+$(__usage_install_destination_info)
 
 
   The followint options use for debug
@@ -1159,6 +1287,7 @@ function cmd_install()
     esac
     shift
   done
+
 
   if ${show_help}; then
     usage_install
@@ -1419,6 +1548,27 @@ function cmd_uninstall()
 
 
 # PATH=/sbin:/bin
+
+
+if [ $(os_type) == 'osx' ]; then
+  # on osx, '/usr/local/sbin' is not a standard bin path
+  BIN_PATH="${USR_LOCAL_BIN_PATH}"
+  SBIN_PATH="${USR_LOCAL_BIN_PATH}"
+  USR_BIN_PATH="${USR_LOCAL_BIN_PATH}"
+  USR_SBIN_PATH="${USR_LOCAL_BIN_PATH}"
+  USR_LOCAL_SBIN_PATH="${USR_LOCAL_BIN_PATH}"
+
+  CP=/bin/cp
+  RM=/bin/rm
+  BASH=/bin/bash
+  ENV=/usr/bin/env
+else
+  CP=/usr/bin/cp
+  RM=/usr/bin/rm
+  BASH=/bin/bash
+  ENV=/usr/bin/env
+fi
+
 
 
 sub_cmd=$1

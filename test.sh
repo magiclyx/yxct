@@ -1,8 +1,18 @@
 
 # TestPath='~/Desktop/share/yxscriptmgr'
-TestPath='/home/emanon/Desktop/share/yxct'
+# TestPath='/home/emanon/Desktop/share/yxct'
 
-sudo rm -f "/usr/local/sbin/yxct"
+
+if [[ "${OSTYPE}" == "darwin"* ]]; then 
+    TestPath='/Users/emanon/Desktop/share/yxct'
+    TargetPath='/usr/local/bin/yxct'
+else
+    TestPath='/home/emanon/Desktop/share/yxct'
+    TargetPath='/usr/local/sbin/yxct'
+fi
+
+sudo rm -f "${TargetPath}"
+
 
 # additional_params="--info-level verbose --test"
 additional_params="--info-level verbose --nono abc"
@@ -112,9 +122,9 @@ echo '==========================================================================
 #sudo ./yxct uninstall yxct --path "${TestPath}" --ignore 'bin'
 
 echo "如果没提供脚本路径， 但path不为空 -> 如果path 是个文件, 直接删除， command 提供验证"
-sudo ./yxct install yxct --usr-local-sbin --path "${TestPath}/yxct"
+sudo ./yxct install yxct --usr-local-sbin --path "${TestPath}/yxct" 
 check_yxct_exist
-sudo ./yxct uninstall yxct --custom-dest "/usr/local/sbin/yxct" ${additional_params}
+sudo ./yxct uninstall yxct --custom-dest "${TargetPath}" ${additional_params}
 check_yxct_not_exist
 echo '===================================================================================================='
 
@@ -132,7 +142,7 @@ sudo ./yxct uninstall yxct ${additional_params} --all
 check_yxct_not_exist
 echo '===================================================================================================='
 
-echo "测试安装脚本，删除多此"
+echo "测试安装脚本，删除多次"
 sudo ./yxct install yxct --usr-local-bin --path "${TestPath}/yxct"
 sudo ./yxct install yxct --usr-local-sbin --path "${TestPath}/yxct"
 sudo ./yxct install yxct --usr-bin --path "${TestPath}/yxct"

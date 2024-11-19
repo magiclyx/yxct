@@ -33,7 +33,7 @@ def install(args):
 		raise TypeError('Invalid script:%s' % args.command)
 	
 #	print("sudo cp --force %s/%s %s" % (script_path, SCRIPT_NAME, args.bin_path))
-	subprocess.call("cp --force %s %s" % (os.path.join(script_path, SCRIPT_NAME), args.bin_path), shell=True)
+	subprocess.call("cp -f %s %s" % (os.path.join(script_path, SCRIPT_NAME), args.bin_path), shell=True)
 	subprocess.call("chmod +x %s" % os.path.join(script_path, SCRIPT_NAME), shell=True)
 	
 
