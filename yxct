@@ -82,10 +82,10 @@ function yx_eval()
   
   if [ -n "${script_path}" ]; then
     
-    # get exe titile from command
-    local title=$(head -n 1 "${script_path}")
-    if echo ${title} | grep -Eq "^#!.*"; then
-      # if title exist, call commmand directly
+    # get shebang line from command
+    local shebang=$(head -n 1 "${script_path}")
+    if echo ${shebang} | grep -Eq "^#!.*"; then
+      # if shebang exist, call commmand directly
       echo_cmd "eval $@"
     else
       # try get file extension name
