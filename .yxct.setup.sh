@@ -10,7 +10,7 @@
 
 function echo_fatal()
 {
-  echo "Fatal:$@"
+  echo "Fatal: $@"
   exit 1
 }
 

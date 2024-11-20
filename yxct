@@ -191,7 +191,7 @@ function echo_fatal()
   local red=$(tput setaf 1);
   local reset=$(tput sgr0);
   
-  (>&2 echo "${red}Fatal:${1}${reset}");
+  (>&2 echo "${red}Fatal: ${1}${reset}");
   exit 1;
 }
 
@@ -566,6 +566,11 @@ function run_setup_script()
 
   if ! [ -f "${script_path}" ]; then
     echo_fatal "setup script not exist :${script_path}"
+  fi
+  
+  if ! [ -x "${script_path}" ]; then
+    echo_err "Setup script does not have execution permissions. try add one."
+    echo_cmd "chmod +x ${script_path}"
   fi
 
   local result
