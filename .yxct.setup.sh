@@ -155,10 +155,6 @@ function cmd_uninstall()
   return 0
 }
 
-function cmd_verify()
-{
-    echo "verify(install.sh)"
-}
 
 
 
@@ -177,8 +173,6 @@ if [[ ${sub_cmd} == 'install' ]]; then
   cmd_install $@
 elif [[ ${sub_cmd} == 'uninstall' ]]; then
   cmd_uninstall $@
-elif [[ ${sub_cmd} == 'verify' ]]; then
-  cmd_verify $@
 else
   echo_fatal "Unknown sub command:'${sub_cmd}'."
 fi

@@ -2,6 +2,9 @@
 # TestPath='~/Desktop/share/yxscriptmgr'
 # TestPath='/home/emanon/Desktop/share/yxct'
 
+##################################################################################
+# 仅用于测试, 部分测试逻辑没运行安装脚本, 安装不全
+##################################################################################
 
 if [[ "${OSTYPE}" == "darwin"* ]]; then 
     TestPath='/Users/emanon/Desktop/share/yxct'
