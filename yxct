@@ -1160,7 +1160,7 @@ cat <<EOF
   usage: ${CMD} uninstall <command> <optional>
   Uninstall a command
 
-  usage: ${CMD} install --help
+  usage: ${CMD} uninstall --help
   Show this help information
 
   The following options are availiable:
@@ -1171,8 +1171,6 @@ cat <<EOF
                             script there.  ${CMD} will not be able to determine which script to uninstall.
                             Use '--ignore' and indicate regulars expression to ignore useless files.
   
-  --force                   If an existing file on bin-path, remove it.
-
   --all                     If command installed on mutiple path and not indicate a target,
                             ${CMD} will try to delete all of them.
 
