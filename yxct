@@ -281,9 +281,9 @@ function strcontains()
 function yx_shell_type()
 {
   local shell_type=
-  if [ -n $"{ZSH_VERSION}" ]; then
+  if [ -n "${ZSH_VERSION}" ]; then
     shell_type='zsh'
-  elif [ -n $"{BASH_VERSION}" ]; then
+  elif [ -n "${BASH_VERSION}" ]; then
     shell_type='bash'
   else
     :
@@ -327,7 +327,7 @@ function is_in_reg_list()
 	shift
 	local reg_list=($@)
 	
-	if [ "${reg_list}" ]; then
+	if [[ "${reg_list}" ]]; then
 		for reg in "${reg_list[@]}"; do
 			reg=$(echo "${reg}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
 			if echo "${name}" | grep -Eqi "${reg}"; then
@@ -448,7 +448,7 @@ function search_file_by_reg_list()
 #   fi
 
 #   if [[ -f "${file1}" ]] && [[ -f "${file2}" ]]; then
-#     if [ "${file1}" -eq "${file2}" ]; then
+#     if [[ "${file1}" -eq "${file2}" ]]; then
 #       return 0
 #     fi
 #   fi
@@ -471,7 +471,7 @@ function check_file_hash()
   fi
 
   local file_hash=$(shasum -a 256 "${file}" | awk '{print $1}')
-  if [ "${file_hash}" == "${hash}" ]; then
+  if [[ "${file_hash}" == "${hash}" ]]; then
     return 0
   else
     return 1
@@ -996,14 +996,14 @@ function uninstall_by_bin_path()
   # 如果bin_path 是个文件, 直接删除， command 提供验证
     if [ -n "${command}" ]; then
       local filename=$(basename "${bin_path}")
-      if [ "${filename}" != "${command}" ]; then
+      if [[ "${filename}" != "${command}" ]]; then
         echo_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
     fi
 
     # 强制删除命令
     echo_cmd "${RM} -f ${bin_path}"
-    if [ $? != 0 ]; then
+    if [[ $? != 0 ]]; then
       echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
   elif [ -d "${bin_path}" ]; then
@@ -1019,7 +1019,7 @@ function uninstall_by_bin_path()
     fi
     # 强制删除命令
     echo_cmd "${RM} -f ${execute_file_path}"
-    if [ $? != 0 ]; then
+    if [[ $? != 0 ]]; then
       echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
     fi
   else
@@ -1058,7 +1058,7 @@ function usage_install()
 
   function __usage_install_destination_info()
   {
-    if [ "$(os_type)" == 'osx' ]; then
+    if [[ "$(os_type)" == 'osx' ]]; then
 cat << EOF
   --usr-local-bin           The command will be install to'/usr/local/bin' (It's the default optional)
   --custom-dest <path>      Indicate a custom path as destination.
@@ -1127,7 +1127,7 @@ function usage_uninstall()
 
   function __usage_install_destination_info()
   {
-    if [ "$(os_type)" == 'osx' ]; then
+    if [[ "$(os_type)" == 'osx' ]]; then
 cat << EOF
   --usr-local-bin           The command will be uninstall from '/usr/local/bin' (It's the default optional)
   --custom-dest <path>      Indicate a custom path as target path.
@@ -1553,7 +1553,7 @@ function cmd_uninstall()
 # PATH=/sbin:/bin
 
 
-if [ $(os_type) == 'osx' ]; then
+if [[ $(os_type) == 'osx' ]]; then
   # on osx, '/usr/local/sbin' is not a standard bin path
   BIN_PATH="${USR_LOCAL_BIN_PATH}"
   SBIN_PATH="${USR_LOCAL_BIN_PATH}"
