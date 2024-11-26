@@ -17,65 +17,76 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 #Display comand only, not run
 TEST_ONLY=false
 
+##############################################################
+# !! 因为yxct不能用YXLib, 下面这些变量必须与yxlogger 中定义的相同
+##############################################################
+readonly YXCT_LEVEL_SILENT=0
+readonly YXCT_LEVEL_FATAL=1
+readonly YXCT_LEVEL_ERROR=4
+readonly YXCT_LEVEL_WARN=5
+readonly YXCT_LEVEL_INFO=8
+readonly YXCT_LEVEL_VERBOSE=9
+readonly YXCT_LEVEL_DEBUG=11
+readonly YXCT_LEVEL_TRACE=12
+readonly YXCT_LEVEL_ALL=99
 
-INFO_SILENT=0
-INFO_FATAL=1
-INFO_ERROR=4
-INFO_VERBOSE=9
-INFO_LEVEL=${INFO_ERROR} # default error
+if [ -z "${YXCT_DEFAULT_LEVEL}" ]; then
+  YXCT_DEFAULT_LEVEL="${YXCT_LEVEL_ERROR}"
+fi
+
 
 ###########################################################
 # Ignore file list in script folder
 ###########################################################
 
 IGNORE_LIST=(
-	# git
-	"\.gitignore"
-	"\.git"
-	"\.gitkeep"
-	
-	################
-	#vim
-	# # vim->swap
-	"[._]*\.s[a-v][a-z]"
-	"[._]*.sw[a-p]"
-	"[._]s[a-rt-v][a-z]"
-	"[._]ss[a-gi-z]"
-	"[._]sw[a-p]"
-	# # vim->session
-	"Session"
-	"Sessionx"
-	# # vim->Temporary
-	"\.netrwhist"
-	"\*~"
-	# # vim->Auto-generated tag files
-	"tags"
-	# # vim->Persistent undo
-	"[._]*.un~"
-	
-	################
-	#vscode
-	"\.vscode"
-	# # vscode->Local History for Visual Studio Code
-	"\.history"
-	# # vscode->Built Visual Studio Code Extensions
-	".*\.vsix"
-	# # vscode->VisualStudioCode Patch
-	"\.history"
-	"\.ionide"
-	
-	# custom
-	"README(\.md)?"
-	"test(\.sh)?"
-	"sample(\.sh)?"
+  # git
+  "\.gitignore"
+  "\.git"
+  "\.gitkeep"
+  
+  ################
+  #vim
+  # # vim->swap
+  "[._]*\.s[a-v][a-z]"
+  "[._]*.sw[a-p]"
+  "[._]s[a-rt-v][a-z]"
+  "[._]ss[a-gi-z]"
+  "[._]sw[a-p]"
+  # # vim->session
+  "Session"
+  "Sessionx"
+  # # vim->Temporary
+  "\.netrwhist"
+  "\*~"
+  # # vim->Auto-generated tag files
+  "tags"
+  # # vim->Persistent undo
+  "[._]*.un~"
+  
+  ################
+  #vscode
+  "\.vscode"
+  # # vscode->Local History for Visual Studio Code
+  "\.history"
+  # # vscode->Built Visual Studio Code Extensions
+  ".*\.vsix"
+  # # vscode->VisualStudioCode Patch
+  "\.history"
+  "\.ionide"
+  
+  # custom
+  "README(\.md)?"
+  "test(\.sh)?"
+  "sample(\.sh)?"
 )
 
 
 ###########################################################
 # logger
 ###########################################################
-
-function yx_eval()
+# 第一个参数，必须是script path.
+function yxct_run_script()
 {
   # get script file path from command
   local script_path=$(echo $@ | awk '{print $1}')
@@ -113,69 +124,69 @@ function yx_eval()
 
 function os_type()
 {
-	
-	local release=''
-	
-	if [ -n "${OSTYPE}" ]; then
-		if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
-			release="linux"
-		elif [[ "${OSTYPE}" == "bsd"* ]]; then 
-			release="bsd"
-		elif [[ "${OSTYPE}" == "freebsd"* ]]; then 
-			release="freebsd"
-		elif [[ "${OSTYPE}" == "darwin"* ]]; then 
-			release="osx"
-		elif [[ "${OSTYPE}" == "solaris"* ]]; then 
-			release="solaris"
-		elif [[ "${OSTYPE}" == "cygwin" ]]; then 
-			# POSIX compatibility layer and Linux environment emulation for Windows 
-			release="cygwin"
-		elif [[ "${OSTYPE}" == "msys" ]]; then 
-			# Lightweight shell and GNU utilities compiled for Windows (part of MinGW) 
-			release="msys"
-		elif [[ "${OSTYPE}" == "win32" ]]; then 
-			# I'm not sure this can happen. 
-			release="windows"
-		else 
-			release="unknown"
-		fi
-	else
-		
-		# $OSTAYPE not recognized by the older shells (such as Bourne shell).
-		# Use `uname` instead
-		
-		case $(uname | tr '[:upper:]' '[:lower:]') in
-			linux*)
-				release='linux'
-			;;
-			freebsd*)
-				release='freebsd'
-			;;
-			darwin*)
-				release="osx"
-			;;
-			SunOS*)
-				release="solaris"
-			;;
-			msys*)
-				release="msys"
-			;;
-			windows*)
-				release="windows"
-			;;
-			*)
-				release="unknown"
-			;;
-		esac
-	fi
-	
+  
+  local release=''
+  
+  if [ -n "${OSTYPE}" ]; then
+    if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
+      release="linux"
+    elif [[ "${OSTYPE}" == "bsd"* ]]; then 
+      release="bsd"
+    elif [[ "${OSTYPE}" == "freebsd"* ]]; then 
+      release="freebsd"
+    elif [[ "${OSTYPE}" == "darwin"* ]]; then 
+      release="osx"
+    elif [[ "${OSTYPE}" == "solaris"* ]]; then 
+      release="solaris"
+    elif [[ "${OSTYPE}" == "cygwin" ]]; then 
+      # POSIX compatibility layer and Linux environment emulation for Windows 
+      release="cygwin"
+    elif [[ "${OSTYPE}" == "msys" ]]; then 
+      # Lightweight shell and GNU utilities compiled for Windows (part of MinGW) 
+      release="msys"
+    elif [[ "${OSTYPE}" == "win32" ]]; then 
+      # I'm not sure this can happen. 
+      release="windows"
+    else 
+      release="unknown"
+    fi
+  else
+    
+    # $OSTAYPE not recognized by the older shells (such as Bourne shell).
+    # Use `uname` instead
+    
+    case $(uname | tr '[:upper:]' '[:lower:]') in
+      linux*)
+        release='linux'
+      ;;
+      freebsd*)
+        release='freebsd'
+      ;;
+      darwin*)
+        release="osx"
+      ;;
+      SunOS*)
+        release="solaris"
+      ;;
+      msys*)
+        release="msys"
+      ;;
+      windows*)
+        release="windows"
+      ;;
+      *)
+        release="unknown"
+      ;;
+    esac
+  fi
+  
 
-	echo "${release}"
+  echo "${release}"
 }
 
 function echo_verbose()
 {
-  if (( "${INFO_LEVEL}" < "${INFO_VERBOSE}" )); then
+  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_VERBOSE}" )); then
     return
   fi
 
@@ -184,7 +195,7 @@ function echo_verbose()
 
 function echo_fatal()
 {
-  if (( "${INFO_LEVEL}" < "${INFO_ERROR}" )); then
+  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_FATAL}" )); then
     return
   fi
 
@@ -198,11 +209,6 @@ function echo_fatal()
 
 function echo_cmd()
 {
-  if (( "${INFO_LEVEL}" < "${INFO_ERROR}" )); then
-    return
-  fi
-
-
   if ${TEST_ONLY}; then
     echo_verbose "Test-only:$*"
     return
@@ -215,6 +221,10 @@ function echo_cmd()
 
 function echo_err()
 {
+  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_ERROR}" )); then
+    return
+  fi
+
   local magenta=$(tput setaf 5);
   local reset=$(tput sgr0);
 
@@ -223,59 +233,65 @@ function echo_err()
 
 function yx_str_checkfmt()
 {
-	local reg=$1
-	local str=$2
-	
-	if [[ -z ${str} ]]; then
-		str=''
-	fi
-	
-	if [[ -z ${reg} ]]; then
-		reg='^\s*[^\s]+\s*$'
-	fi
-	
-	if ! [[ ${str} =~ ${reg} ]] ; then
-		return 1
-	fi
-	
-	return 0
+  local reg=$1
+  local str=$2
+  
+  if [[ -z ${str} ]]; then
+    str=''
+  fi
+  
+  if [[ -z ${reg} ]]; then
+    reg='^\s*[^\s]+\s*$'
+  fi
+  
+  if ! [[ ${str} =~ ${reg} ]] ; then
+    return 1
+  fi
+  
+  return 0
 }
 
 function strcontains()
 {
-	local str="$1"
-	local arr_str="$2"
-	local ignorecase=false
-	shift 
-	shift 
-	
-	while [ $# -gt 0 ]; do
-		case $1 in
-			
-			--ignorecase )
-				ignorecase=true
-			;;
-			
-			*)
-				echo "Invalid optional ${1}"
-			;;
-		esac
-		shift
-	done
+  local str="$1"
+  local arr_str="$2"
+  local ignorecase=false
+  shift 
+  shift 
+  
+  while [ $# -gt 0 ]; do
+    case $1 in
+      
+      --ignorecase )
+        ignorecase=true
+      ;;
+      
+      *)
+        echo "Invalid optional ${1}"
+      ;;
+    esac
+    shift
+  done
 
-	
-	if ${ignorecase}; then
-		for e in $(echo "${arr_str}"); do
-			[[ "${e^^}" == "${str^^}" ]] && return 0
-		done
-	else
-		for e in $(echo "${arr_str}"); do
+  
+  if ${ignorecase}; then
+    if [[ $(yx_shell_type) == 'bash' ]]; then
+      for e in $(echo "${arr_str}"); do
+        [[ "${e^^}" == "${str^^}" ]] && return 0
+      done
+    else
+      for e in $(echo "${arr_str}"); do
+        [[ "${e:u}" == "${str:u}" ]] && return 0
+      done
+    fi
+  else
+    for e in $(echo "${arr_str}"); do
       echo "compare between ${e} and ${str}"
-			[[ "${e}" == "${str}" ]] && return 0
-		done
-	fi
-	
-	return 1
+      [[ "${e}" == "${str}" ]] && return 0
+    done
+  fi
+  
+  return 1
 }
 
 function yx_shell_type()
@@ -302,20 +318,38 @@ function set_info_level()
   if [ -n "${info_level}" ]; then
 
     if yx_str_checkfmt '^([0-9])+$' "${info_level}"; then
-      INFO_LEVEL=${info_level}
+      YXCT_DEFAULT_LEVEL="${info_level}"
+      export YXLOGGER_DEFAULT_LEVEL="${info_level}"
+    elif strcontains "${info_level}" 'silent' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_SILENT}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_SILENT}"
+    elif strcontains "${info_level}" 'fatal fat' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_FATAL}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_FATAL}"
+    elif strcontains "${info_level}" 'error err' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_ERROR}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_ERROR}"
+    elif strcontains "${info_level}" 'warning warn' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_WARN}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_WARN}"
+    elif strcontains "${info_level}" 'info msg' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_INFO}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_INFO}"
+    elif strcontains "${info_level}" 'verbose verb' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_VERBOSE}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_VERBOSE}"
+    elif strcontains "${info_level}" 'debug' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_DEBUG}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_DEBUG}"
+    elif strcontains "${info_level}" 'trace' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_TRACE}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_TRACE}"
+    elif strcontains "${info_level}" 'all' --ignorecase; then
+      YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_ALL}
+      export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_ALL}"
     else
-      if strcontains "${info_level}" 'silent' --ignorecase; then
-        INFO_LEVEL=${INFO_SILENT}
-      elif strcontains "${info_level}" 'fatal' --ignorecase; then
-        INFO_LEVEL=${INFO_FATAL}
-      elif strcontains "${info_level}" 'error' --ignorecase; then
-        INFO_LEVEL=${INFO_ERROR}
-      elif strcontains "${info_level}" 'verbose' --ignorecase; then
-        INFO_LEVEL=${INFO_VERBOSE}
-      else
-        echo_fatal "Unknown info level:${info_level}"
-      fi
-    fi # end of 'if yx_str_checkfmt '^([0-9])+$' '
+      yx_fatal "unknown info level :${info_level}"
+    fi # end of (if yx_check_strfmt '^([0-9])+$' "${info_level}"; then)
 
   fi # end of 'if [ -n ${info_level} ]'
 }
@@ -323,20 +357,20 @@ function set_info_level()
 
 function is_in_reg_list()
 {
-	local name=$1
-	shift
-	local reg_list=($@)
-	
-	if [[ "${reg_list}" ]]; then
-		for reg in "${reg_list[@]}"; do
-			reg=$(echo "${reg}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
-			if echo "${name}" | grep -Eqi "${reg}"; then
-				return 0
-			fi
-		done
-	fi
-	
-	return 1
+  local name=$1
+  shift
+  local reg_list=($@)
+  
+  if [[ "${reg_list}" ]]; then
+    for reg in "${reg_list[@]}"; do
+      reg=$(echo "${reg}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+      if echo "${name}" | grep -Eqi "${reg}"; then
+        return 0
+      fi
+    done
+  fi
+  
+  return 1
 }
 
 
@@ -347,7 +381,7 @@ function is_in_reg_list()
 # usage: file_name_if_single <目录> --ignore '正则1' '正则2' ....
 function file_name_if_single()
 {
-	local script_path=$1
+  local script_path=$1
   local -a ignore_reg_list
   if [[ $2 == '--ignore' ]]; then
     shift # ignore $1
@@ -355,34 +389,35 @@ function file_name_if_single()
     ignore_reg_list=($@)
   fi
 
-	
-	local -a valid_files
-	# local SAVEIFS=$IFS
-	for file in "${script_path%/}"/*; do
-		if [[ ${file} == ${script_path}/\* ]]; then
-			continue
-		fi
+  
+  local -a valid_files
+  # local SAVEIFS=$IFS
+  for file in "${script_path%\/}"/*; do
 
-		local filename=$(basename  "${file}")		
+    if [[ ${file} =~ ^"${script_path%\/}"/*$ ]]; then
+      continue
+    fi
+
+    local filename=$(basename  "${file}")    
 
     # 文件名在忽略列表里
     if is_in_reg_list "${filename}" ${ignore_reg_list[@]}; then
       continue
-		fi
+    fi
 
-		if ! is_in_reg_list "${filename}" ${IGNORE_LIST[@]}; then
-			valid_files=(${valid_files[@]} "${filename}")
-		fi
-		
-	done
-	# IFS=${SAVEIFS}
-	
-	if [[ "${#valid_files[@]}" == 1 ]]; then
-		echo "${valid_files[@]}"
-		return 0
-	else
-		return 1
-	fi
+    if ! is_in_reg_list "${filename}" ${IGNORE_LIST[@]}; then
+      valid_files=(${valid_files[@]} "${filename}")
+    fi
+    
+  done
+  # IFS=${SAVEIFS}
+  
+  if [[ "${#valid_files[@]}" == 1 ]]; then
+    echo "${valid_files[@]}"
+    return 0
+  else
+    return 1
+  fi
 }
 
 function search_file_by_reg_list()
@@ -395,25 +430,26 @@ function search_file_by_reg_list()
 
 
   # search regular files
-	for file in "${script_path%/}"/*; do
-		if [[ ${file} == ${script_path}/\* ]]; then
-			continue
-		fi
+  for file in "${script_path%\/}"/*; do
 
-    local filename=$(basename "${file}")		
+    if [[ ${file} =~ ^"${script_path%\/}"/*$ ]]; then
+      continue
+    fi
+
+    local filename=$(basename "${file}")    
     if is_in_reg_list "${filename}" ${reg_list[@]}; then
       echo "${filename}"
       return 0
-		fi
+    fi
   done
 
   # search regular invisiable files 
-  for file in "${script_path%/}"/.*; do
-		if [[ ${file} == ${script_path%/}/\* ]]; then
-			continue
-		fi
+  for file in "${script_path%\/}"/.*; do
+    if [[ ${file} == ${script_path%/}/\* ]]; then
+      continue
+    fi
 
-    local filename=$(basename "${file}")		
+    local filename=$(basename "${file}")    
     if [[ ${filename} == '.' ]] || [[ ${filename} == '..' ]]; then
       continue
     fi
@@ -421,7 +457,7 @@ function search_file_by_reg_list()
     if is_in_reg_list "${filename}" ${reg_list[@]}; then
       echo "${filename}"
       return 0
-		fi
+    fi
   done
 
 
@@ -478,49 +514,6 @@ function check_file_hash()
   fi
 }
 
-function strcontains()
-{
-	local str="$1"
-	local arr_str="$2"
-	local ignorecase=false
-	shift 
-	shift 
-	
-	while [ $# -gt 0 ]; do
-		case $1 in
-			
-			--ignorecase )
-				ignorecase=true
-			;;
-			
-			*)
-				echo "Invalid optional ${1}"
-			;;
-		esac
-		shift
-	done
-
-	
-	if ${ignorecase}; then
-    if [ $(yx_shell_type) == 'bash' ]; then
-      for e in $(echo "${arr_str}"); do
-        [[ "${e^^}" == "${str^^}" ]] && return 0
-      done
-    else
-      for e in $(echo "${arr_str}"); do
-        [[ "${e:u}" == "${str:u}" ]] && return 0
-      done
-    fi
-	else
-		for e in $(echo "${arr_str}"); do
-      echo "compare between ${e} and ${str}"
-			[[ "${e}" == "${str}" ]] && return 0
-		done
-	fi
-	
-	return 1
-}
-
 # 执行卸载脚本
 function run_setup_script()
 {
@@ -573,11 +566,21 @@ function run_setup_script()
     echo_cmd "chmod +x ${script_path}"
   fi
 
+
+  # 因为运行脚本，很可能使用了YXLib库，这里让运行脚本
+  # 这里了设置yxlogger的环境变量
+  local saved_yxlib_log_echo_level="${YXLOGGER_DEFAULT_LEVEL}"
+  if [ -n "${YXCT_DEFAULT_LEVEL}" ]; then
+    # 保存之前的环境变量
+    export YXLOGGER_DEFAULT_LEVEL="${YXCT_DEFAULT_LEVEL}"
+  fi
+
+
   local result
   if [ -n "${bin_path}" ]; then
   # 如果给了bin_path, 则按照 bin_path 给卸载脚本
     pushd $(dirname "${script_path}") > /dev/null
-    yx_eval "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+    yxct_run_script "${script_path} ${option} --bin-path ${bin_path} ${additional}"
     result="$?"
     popd > /dev/null
 
@@ -597,7 +600,7 @@ function run_setup_script()
       local bin_path=$(dirname "${finded_exec_path}")
 
       pushd $(dirname "${script_path}") > /dev/null
-      yx_eval "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+      yxct_run_script "${script_path} ${option} --bin-path ${bin_path} ${additional}"
       result="$?"
       popd > /dev/null    
 
@@ -613,7 +616,7 @@ function run_setup_script()
   else
     # 如果没找到command, 完全不知道 --bin-path , 直接调用脚本
     pushd $(dirname "${script_path}") > /dev/null
-    yx_eval "${script_path} ${option} ${additional}"
+    yxct_run_script "${script_path} ${option} ${additional}"
     result="$?"
     popd > /dev/null
 
@@ -623,9 +626,16 @@ function run_setup_script()
   fi
 
 
+  # 这里要还原 YXLOGGER_DEFAULT_LEVEL
+  # 使用和备份时相同的判断条件
+  if [ -n "${YXCT_DEFAULT_LEVEL}" ]; then
+    export YXLOGGER_DEFAULT_LEVEL="${saved_yxlib_log_echo_level}"
+  fi
+
+
 
   # pushd $(dirname "${script_path}") > /dev/null
-  # yx_eval "${script_path} ${option} ${additional}"
+  # yxct_run_script "${script_path} ${option} ${additional}"
   # result="$?"
   # popd > /dev/null
 
@@ -644,7 +654,7 @@ function remove_command()
   local hash=
 
   while [ $# -gt 0 ]; do
-	  case $1 in
+    case $1 in
       --command )
         shift
         command=$1
@@ -713,7 +723,7 @@ function remove_by_hash_file()
     local all=false
 
     while [ $# -gt 0 ]; do
-		  case $1 in
+      case $1 in
         --path )
           shift
           file_path=$1
@@ -945,13 +955,13 @@ function uninstall_by_script_path()
     local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-      run_setup_script uninstall --path "${script_path}/${uninstall_script_filename}" ${params} ${additional}
+      run_setup_script uninstall --path "${script_path%\/}/${uninstall_script_filename}" ${params} ${additional}
     else
     # 没找到那个安装脚本，查看是否是单脚本APP
       local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
       if [ -n "${singl_app_name}" ]; then
         # 如果文件夹下只找到一个文件，尝试使用 command 和 bin_path卸载。并使用这个文件做 hash 验证.
-        remove_by_hash_file --path "${script_path}/${singl_app_name}" ${params} ${additional}
+        remove_by_hash_file --path "${script_path%\/}/${singl_app_name}" ${params} ${additional}
       else
         # 如果不是单脚本APP, 不知道如何安装
         echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
@@ -1222,7 +1232,7 @@ function cmd_install()
       is_in_ignore=false
     fi
 
-		case $1 in
+    case $1 in
 
       --path )
         shift
@@ -1274,7 +1284,7 @@ function cmd_install()
       --info-level )
         shift
         info_level=$1
-			;;
+      ;;
 
       --help | h )
         show_help=true
@@ -1362,7 +1372,7 @@ function cmd_install()
       local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
       if [ -n "${install_script_filename}" ]; then
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-        run_setup_script install --path "${script_path}/${install_script_filename}" ${params} ${additional}
+        run_setup_script install --path "${script_path%\/}/${install_script_filename}" ${params} ${additional}
       else
 
         local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
@@ -1376,10 +1386,10 @@ function cmd_install()
            
           if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
           # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
-            install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+            install_file --file "${script_path%\/}/${singl_app_name}" "${force_params}" ${params}
           else
           # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
-            install_file --file "${script_path}/${singl_app_name}" "${force_params}" ${params}
+            install_file --file "${script_path%\/}/${singl_app_name}" "${force_params}" ${params}
           fi
         else
           # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
@@ -1424,7 +1434,7 @@ function cmd_uninstall()
       is_in_ignore=false
     fi
 
-		case $1 in
+    case $1 in
 
       --path )
         shift
@@ -1472,7 +1482,7 @@ function cmd_uninstall()
       --info-level )
         shift
         info_level=$1
-			;;
+      ;;
 
       --test )
         test=true;
@@ -1550,8 +1560,21 @@ function cmd_uninstall()
 }
 
 
+####################################################################################################
+# Entry
+####################################################################################################
+
 # PATH=/sbin:/bin
 
+# 尝试继承当前环境中YXLib的日志级别。
+if [ -n "${YXLOGGER_DEFAULT_LEVEL}" ]; then
+  set_info_level "${YXLOGGER_DEFAULT_LEVEL}"
+fi
+
+# 如果syslog的tag没被设置(没有上层脚本), 则将其设置为${CMD}
+if [ -n "${YXLOGGER_SYSLOG_TAG}" ]; then
+  YXLOGGER_SYSLOG_TAG="${CMD}"
+fi
 
 if [[ $(os_type) == 'osx' ]]; then
   # on osx, '/usr/local/sbin' is not a standard bin path
