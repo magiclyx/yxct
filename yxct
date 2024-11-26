@@ -97,19 +97,19 @@ function yxct_run_script()
     local shebang=$(head -n 1 "${script_path}")
     if echo ${shebang} | grep -Eq "^#!.*"; then
       # if shebang exist, call commmand directly
-      echo_cmd "eval $@"
+      yxct_verbcmd "eval $@"
     else
       # try get file extension name
       local file_ext=${script_path##*.}
 
       # call command by extension name
       if [ -n "${file_ext}" ]; then
-        if strcontains "${file_ext}" "sh" --ignorecase; then
-          echo_cmd "eval ${BASH} $@"
-        elif strcontains "${file_ext}" "py" --ignorecase; then
-          echo_cmd "eval ${ENV} python3 $@"
+        if yxct_strcontains "${file_ext}" "sh" --ignorecase; then
+          yxct_verbcmd "eval ${BASH} $@"
+        elif yxct_strcontains "${file_ext}" "py" --ignorecase; then
+          yxct_verbcmd "eval ${ENV} python3 $@"
         else
-          echo_cmd "eval $@"
+          yxct_verbcmd "eval $@"
         fi
       fi
 
@@ -122,7 +122,7 @@ function yxct_run_script()
 # YXLib
 ###########################################################
 
-function os_type()
+function yxct_os_type()
 {
   
   local release=''
@@ -184,7 +184,7 @@ function os_type()
   echo "${release}"
 }
 
-function echo_verbose()
+function yxct_verbose()
 {
   if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_VERBOSE}" )); then
     return
@@ -193,7 +193,7 @@ function echo_verbose()
   (>&1 echo "$1")
 }
 
-function echo_fatal()
+function yxct_fatal()
 {
   if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_FATAL}" )); then
     return
@@ -207,19 +207,19 @@ function echo_fatal()
 }
 
 
-function echo_cmd()
+function yxct_verbcmd()
 {
   if ${TEST_ONLY}; then
-    echo_verbose "Test-only:$*"
+    yxct_verbose "Test-only:$*"
     return
   else
-    echo_verbose "$*"
+    yxct_verbose "$*"
   fi
 
   $@
 }
 
-function echo_err()
+function yxct_err()
 {
   if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_ERROR}" )); then
     return
@@ -231,7 +231,7 @@ function echo_err()
   (>&2 echo "${magenta}${1}${reset}")
 }
 
-function yx_str_checkfmt()
+function yxct_str_checkfmt()
 {
   local reg=$1
   local str=$2
@@ -251,7 +251,7 @@ function yx_str_checkfmt()
   return 0
 }
 
-function strcontains()
+function yxct_strcontains()
 {
   local str="$1"
   local arr_str="$2"
@@ -275,7 +275,7 @@ function strcontains()
 
   
   if ${ignorecase}; then
-    if [[ $(yx_shell_type) == 'bash' ]]; then
+    if [[ $(yxct_shell_type) == 'bash' ]]; then
       for e in $(echo "${arr_str}"); do
         [[ "${e^^}" == "${str^^}" ]] && return 0
       done
@@ -294,7 +294,7 @@ function strcontains()
   return 1
 }
 
-function yx_shell_type()
+function yxct_shell_type()
 {
   local shell_type=
   if [ -n "${ZSH_VERSION}" ]; then
@@ -312,39 +312,39 @@ function yx_shell_type()
 # Utility
 ###########################################################
 
-function set_info_level()
+function yxct_set_info_level()
 {
   local info_level=$1
   if [ -n "${info_level}" ]; then
 
-    if yx_str_checkfmt '^([0-9])+$' "${info_level}"; then
+    if yxct_str_checkfmt '^([0-9])+$' "${info_level}"; then
       YXCT_DEFAULT_LEVEL="${info_level}"
       export YXLOGGER_DEFAULT_LEVEL="${info_level}"
-    elif strcontains "${info_level}" 'silent' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'silent' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_SILENT}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_SILENT}"
-    elif strcontains "${info_level}" 'fatal fat' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'fatal fat' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_FATAL}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_FATAL}"
-    elif strcontains "${info_level}" 'error err' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'error err' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_ERROR}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_ERROR}"
-    elif strcontains "${info_level}" 'warning warn' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'warning warn' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_WARN}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_WARN}"
-    elif strcontains "${info_level}" 'info msg' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'info msg' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_INFO}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_INFO}"
-    elif strcontains "${info_level}" 'verbose verb' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'verbose verb' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_VERBOSE}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_VERBOSE}"
-    elif strcontains "${info_level}" 'debug' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'debug' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_DEBUG}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_DEBUG}"
-    elif strcontains "${info_level}" 'trace' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'trace' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_TRACE}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_TRACE}"
-    elif strcontains "${info_level}" 'all' --ignorecase; then
+    elif yxct_strcontains "${info_level}" 'all' --ignorecase; then
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_ALL}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_ALL}"
     else
@@ -499,11 +499,11 @@ function check_file_hash()
   local hash=$2
 
   if ! [ -r "${file}" ]; then
-    echo_fatal "Can not read the file:${file}"
+    yxct_fatal "Can not read the file:${file}"
   fi
 
   if [ -z "${hash}" ]; then
-    echo_fatal "hash is empty."
+    yxct_fatal "hash is empty."
   fi
 
   local file_hash=$(shasum -a 256 "${file}" | awk '{print $1}')
@@ -523,14 +523,14 @@ function run_setup_script()
   local all=false
 
   local option=$1
-  if strcontains "${option}" 'install' --ignorecase; then
+  if yxct_strcontains "${option}" 'install' --ignorecase; then
     option="install"
     shift
-  elif strcontains "${option}" 'uninstall' --ignorecase; then
+  elif yxct_strcontains "${option}" 'uninstall' --ignorecase; then
     option="uninstall"
     shift
   else
-    echo_fatal "option is empty."
+    yxct_fatal "option is empty."
   fi
 
   while [ $# -gt 0 ]; do
@@ -558,12 +558,12 @@ function run_setup_script()
 
 
   if ! [ -f "${script_path}" ]; then
-    echo_fatal "setup script not exist :${script_path}"
+    yxct_fatal "setup script not exist :${script_path}"
   fi
   
   if ! [ -x "${script_path}" ]; then
-    echo_err "Setup script does not have execution permissions. try add one."
-    echo_cmd "chmod +x ${script_path}"
+    yxct_err "Setup script does not have execution permissions. try add one."
+    yxct_verbcmd "chmod +x ${script_path}"
   fi
 
 
@@ -585,7 +585,7 @@ function run_setup_script()
     popd > /dev/null
 
     if [[ "${result}" != '0' ]]; then
-      echo_fatal "Failed to run setup script: ${script_path}"
+      yxct_fatal "Failed to run setup script: ${script_path}"
     fi
   elif which "${command}" > /dev/null; then
   # else
@@ -605,7 +605,7 @@ function run_setup_script()
       popd > /dev/null    
 
       if [[ "${result}" != '0' ]]; then
-        echo_fatal "Failed to run setup script: ${script_path}"
+        yxct_fatal "Failed to run setup script: ${script_path}"
       fi
 
       if ! ${all}; then
@@ -621,7 +621,7 @@ function run_setup_script()
     popd > /dev/null
 
     if [[ "${result}" != '0' ]]; then
-      echo_fatal "Failed to run setup script: ${script_path}"
+      yxct_fatal "Failed to run setup script: ${script_path}"
     fi
   fi
 
@@ -640,7 +640,7 @@ function run_setup_script()
   # popd > /dev/null
 
   # if [[ "${result}" != '0' ]]; then
-  #   echo_fatal "Failed to run setup script: ${script_path}"
+  #   yxct_fatal "Failed to run setup script: ${script_path}"
   # fi
 
   return ${result}
@@ -673,12 +673,12 @@ function remove_command()
   done
 
   if [ -z "${command}" ]; then
-    echo_fatal "Command is empty !"
+    yxct_fatal "Command is empty !"
   fi
 
   # 提前额外验证一下， while循环里的验证不能抱错误警告
   if ! $(which "${command}" > /dev/null); then
-    echo_fatal "Can not find the command:${command}"
+    yxct_fatal "Can not find the command:${command}"
   fi
 
   while true; do
@@ -688,7 +688,7 @@ function remove_command()
     fi
 
     if ! [ -w ${finded_exec_path} ]; then
-     echo_fatal "Have not permission to remove the file:${finded_exec_path}"
+     yxct_fatal "Have not permission to remove the file:${finded_exec_path}"
     fi
 
     if [ -n "${hash}" ]; then
@@ -698,9 +698,9 @@ function remove_command()
     fi
 
     # 强制删除命令
-    echo_cmd "${RM} -f ${finded_exec_path}"
+    yxct_verbcmd "${RM} -f ${finded_exec_path}"
     if [[ $? != '0' ]]; then
-      echo_fatal "Fail to uninstall '${command}'"
+      yxct_fatal "Fail to uninstall '${command}'"
     fi
 
     if ! ${all}; then
@@ -747,17 +747,17 @@ function remove_by_hash_file()
     done
 
     if ! [ -f "${file_path}" ]; then
-      echo_fatal "File not exist :${file_path}"
+      yxct_fatal "File not exist :${file_path}"
     fi
     local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}' )
     if [ -z "${file_hash}" ]; then
-      echo_fatal "Failed to calculate the hash value of the file:${file_path}"
+      yxct_fatal "Failed to calculate the hash value of the file:${file_path}"
     fi
 
     local filename=$(basename "${file_path}")
     # 如果提供了命令名，脚本名字和命令名必须相同
     if [ -n "${command}" ] && [ "${filename}" != "${command}" ]; then
-      echo_fatal "Filename name and command not matched."
+      yxct_fatal "Filename name and command not matched."
     fi
 
     if [ -n "${bin_path}" ]; then
@@ -770,18 +770,18 @@ function remove_by_hash_file()
       fi
 
       if ! [ -f ${finded_exec_path} ]; then
-        echo_fatal "Can not find a command at:${finded_exec_path}"
+        yxct_fatal "Can not find a command at:${finded_exec_path}"
       fi
 
       # 要删除的文件必须和传入的文件相同
       if ! check_file_hash "${finded_exec_path}" "${file_hash}"; then
-        echo_fatal "Script and execute file not matched:(${execute_file_path})"
+        yxct_fatal "Script and execute file not matched:(${execute_file_path})"
       fi
 
       # 强制删除命令
-      echo_cmd "${RM} -f ${execute_file_path}"
+      yxct_verbcmd "${RM} -f ${execute_file_path}"
       if [[ $? != 0 ]]; then
-        echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
+        yxct_fatal "Fail to uninstall '${command}' in path:${bin_path}"
       fi
    else
      local params=''
@@ -826,15 +826,15 @@ function install_file()
   done
 
   if [ -z "${file_path}" ]; then
-    echo_fatal "file path is empty."
+    yxct_fatal "file path is empty."
   fi
 
   if ! [ -r "${file_path}" ]; then
-    echo_fatal "Can not read file:${file_path}"
+    yxct_fatal "Can not read file:${file_path}"
   fi
 
   if [ -z ${bin_path} ]; then
-    echo_fatal "destination path is empty."
+    yxct_fatal "destination path is empty."
   fi
 
   if [ -z "${command}" ]; then
@@ -847,7 +847,7 @@ function install_file()
   if [ -f "${dest_path}" ] && ! ${force}; then
     local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}')
     if ! check_file_hash "${dest_path}" "${file_hash}"; then
-      echo_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file"
+      yxct_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file"
     fi
   fi
 
@@ -858,7 +858,7 @@ function install_file()
     force_params='-f'
   fi
 
-  echo_cmd "${CP} ${force_params} ${file_path} ${bin_path}/${command}"
+  yxct_verbcmd "${CP} ${force_params} ${file_path} ${bin_path}/${command}"
 }
 
 
@@ -916,7 +916,7 @@ function uninstall_by_script_path()
   done
 
   if [ -z "${script_path}" ]; then
-    echo_fatal "Script path is empty."
+    yxct_fatal "Script path is empty."
   fi
 
   # local all_params=''
@@ -964,12 +964,12 @@ function uninstall_by_script_path()
         remove_by_hash_file --path "${script_path%\/}/${singl_app_name}" ${params} ${additional}
       else
         # 如果不是单脚本APP, 不知道如何安装
-        echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
+        yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
       fi
     fi
   else
   # 既不是文件，也不是目录，无效script_path
-    echo_fatal "Invalid script path:${script_path}"
+    yxct_fatal "Invalid script path:${script_path}"
   fi
 }
 
@@ -996,7 +996,7 @@ function uninstall_by_bin_path()
       ;; 
 
       *)
-        echo_fatal "Invalid params:${$1}"
+        yxct_fatal "Invalid params:${$1}"
     esac
     shift
   done
@@ -1007,20 +1007,20 @@ function uninstall_by_bin_path()
     if [ -n "${command}" ]; then
       local filename=$(basename "${bin_path}")
       if [[ "${filename}" != "${command}" ]]; then
-        echo_fatal "Filename name '${filename}' and command '${command}' not matched."
+        yxct_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
     fi
 
     # 强制删除命令
-    echo_cmd "${RM} -f ${bin_path}"
+    yxct_verbcmd "${RM} -f ${bin_path}"
     if [[ $? != 0 ]]; then
-      echo_fatal "Fail to uninstall '${command}' on path:${bin_path}"
+      yxct_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
   elif [ -d "${bin_path}" ]; then
   # 如果bin_path 是个目录, 则command 不能为空, 根据command删除
 
     if [ -z "${command}" ]; then
-      echo_fatal "Can not find any script in path ${bin_path}"
+      yxct_fatal "Can not find any script in path ${bin_path}"
     fi
 
     local execute_file_path="${bin_path}/${command}"
@@ -1028,13 +1028,13 @@ function uninstall_by_bin_path()
       echo_file "Script does not exist:${execute_file_path}"
     fi
     # 强制删除命令
-    echo_cmd "${RM} -f ${execute_file_path}"
+    yxct_verbcmd "${RM} -f ${execute_file_path}"
     if [[ $? != 0 ]]; then
-      echo_fatal "Fail to uninstall '${command}' in path:${bin_path}"
+      yxct_fatal "Fail to uninstall '${command}' in path:${bin_path}"
     fi
   else
     # 既不是文件，也不是目录，无效bin_path
-    echo_fatal "Invalid path:${bin_path}"
+    yxct_fatal "Invalid path:${bin_path}"
   fi
 }
 
@@ -1042,7 +1042,7 @@ function uninstall_by_bin_path()
 # Usage
 ###########################################################
 
-function usage()
+function yxct_usage()
 {
 cat <<EOF
   usage: ${CMD} <sub-command> <optional>
@@ -1063,12 +1063,12 @@ cat <<EOF
 EOF
 }
 
-function usage_install()
+function yxct_usage_install()
 {
 
   function __usage_install_destination_info()
   {
-    if [[ "$(os_type)" == 'osx' ]]; then
+    if [[ "$(yxct_os_type)" == 'osx' ]]; then
 cat << EOF
   --usr-local-bin           The command will be install to'/usr/local/bin' (It's the default optional)
   --custom-dest <path>      Indicate a custom path as destination.
@@ -1132,12 +1132,12 @@ $(__usage_install_destination_info)
 EOF
 }
 
-function usage_uninstall()
+function yxct_usage_uninstall()
 {
 
   function __usage_install_destination_info()
   {
-    if [[ "$(os_type)" == 'osx' ]]; then
+    if [[ "$(yxct_os_type)" == 'osx' ]]; then
 cat << EOF
   --usr-local-bin           The command will be uninstall from '/usr/local/bin' (It's the default optional)
   --custom-dest <path>      Indicate a custom path as target path.
@@ -1303,7 +1303,7 @@ function cmd_install()
 
 
   if ${show_help}; then
-    usage_install
+    yxct_usage_install
     exit 0
   else
     if ${test}; then
@@ -1312,15 +1312,15 @@ function cmd_install()
 
 
     if [ -n "${info_level}" ]; then
-      set_info_level "${info_level}"
+      yxct_set_info_level "${info_level}"
     fi
 
     if [ -z "${script_path}" ]; then
-      echo_fatal "Script path is empty. Use --help to show more information."
+      yxct_fatal "Script path is empty. Use --help to show more information."
     fi
 
     if [ -z "${command}" ]; then
-      echo_fatal "Command is empty. Use --help to show more information."
+      yxct_fatal "Command is empty. Use --help to show more information."
     fi
 
 
@@ -1393,13 +1393,13 @@ function cmd_install()
           fi
         else
           # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
-          echo_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+          yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
         fi
 
       fi
     else
     # 既不是文件，也不是目录，无效script_path
-      echo_fatal "Invalid script path:${script_path}"
+      yxct_fatal "Invalid script path:${script_path}"
     fi
   fi
 
@@ -1504,7 +1504,7 @@ function cmd_uninstall()
   done
 
   if ${show_help}; then
-    usage_uninstall
+    yxct_usage_uninstall
     exit 0
   else
     if ${test}; then
@@ -1513,11 +1513,11 @@ function cmd_uninstall()
 
 
     if [ -n "${info_level}" ]; then
-      set_info_level "${info_level}"
+      yxct_set_info_level "${info_level}"
     fi
 
     if [ -z "${command}" ]; then
-      echo_fatal "Command is empty. Use --help to show more information."
+      yxct_fatal "Command is empty. Use --help to show more information."
     fi
 
 
@@ -1551,7 +1551,7 @@ function cmd_uninstall()
 
       remove_command ${params}
     else
-      echo_fatal "Invalid parameters, use --help to show more information."
+      yxct_fatal "Invalid parameters, use --help to show more information."
     fi
   fi
 
@@ -1568,7 +1568,7 @@ function cmd_uninstall()
 
 # 尝试继承当前环境中YXLib的日志级别。
 if [ -n "${YXLOGGER_DEFAULT_LEVEL}" ]; then
-  set_info_level "${YXLOGGER_DEFAULT_LEVEL}"
+  yxct_set_info_level "${YXLOGGER_DEFAULT_LEVEL}"
 fi
 
 # 如果syslog的tag没被设置(没有上层脚本), 则将其设置为${CMD}
@@ -1576,7 +1576,7 @@ if [ -n "${YXLOGGER_SYSLOG_TAG}" ]; then
   YXLOGGER_SYSLOG_TAG="${CMD}"
 fi
 
-if [[ $(os_type) == 'osx' ]]; then
+if [[ $(yxct_os_type) == 'osx' ]]; then
   # on osx, '/usr/local/sbin' is not a standard bin path
   BIN_PATH="${USR_LOCAL_BIN_PATH}"
   SBIN_PATH="${USR_LOCAL_BIN_PATH}"
@@ -1600,7 +1600,7 @@ fi
 sub_cmd=$1
 shift
 if [[ -z ${sub_cmd} ]]; then
-  echo_fatal "Param error. use '${CMD} --help' to show document"
+  yxct_fatal "Param error. use '${CMD} --help' to show document"
 fi
 
 
@@ -1609,8 +1609,8 @@ if [[ "${sub_cmd}" == 'install' ]]; then
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
   cmd_uninstall $@
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
-  usage
+  yxct_usage
   exit 0
 else
-  echo_fatal "Unknown sub command:'${sub_cmd}'. Use ${CMD} --help tho show help information."
+  yxct_fatal "Unknown sub command:'${sub_cmd}'. Use ${CMD} --help tho show help information."
 fi
