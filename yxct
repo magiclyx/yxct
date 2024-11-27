@@ -1564,7 +1564,8 @@ function cmd_uninstall()
 # Entry
 ####################################################################################################
 
-# PATH=/sbin:/bin
+# 不要限制'PATH', 会引起`which`命令无法查找
+# PATH=/sbin:/bin:/usr/bin
 
 # 尝试继承当前环境中YXLib的日志级别。
 if [ -n "${YXLOGGER_DEFAULT_LEVEL}" ]; then
