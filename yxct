@@ -943,7 +943,7 @@ function uninstall_by_script_path()
 
   local script_file_name=$(basename "${script_path}")
   # 如果脚本路径是一个文件
-    if echo "${script_file_name}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
+    if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
     # 如果文件是一个安装脚本, 直接调用脚本
       run_setup_script uninstall --path "${script_path}" ${params} ${additional}
     else
@@ -952,7 +952,7 @@ function uninstall_by_script_path()
     fi
   elif [ -d "${script_path}" ]; then
   # 如果脚本路径是一个目录
-    local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
+    local uninstall_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
     if [[ -n "${uninstall_script_filename}" ]]; then
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
       run_setup_script uninstall --path "${script_path%\/}/${uninstall_script_filename}" ${params} ${additional}
@@ -1346,7 +1346,7 @@ function cmd_install()
     # 如果脚本路径是一个文件
 
       local script_file_name=$(basename ${script_path})
-      if echo "${script_file_name}" | grep -Eq "\.${CMD}.setup(\.sh|\.py|\.rb)?"; then
+      if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
       # 如果文件是一个安装脚本, 直接调用脚本
         run_setup_script install --path "${script_path}" ${params} ${additional}
       else
@@ -1369,7 +1369,7 @@ function cmd_install()
     elif [ -d "${script_path}" ]; then
       # 如果脚本路径是一个目录
       local script_file_name=$(basename "${script_path}")
-      local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "\.${CMD}.setup(\.sh|\.py|\.rb)?")
+      local install_script_filename=$(search_file_by_reg_list "${script_file_name}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
       if [ -n "${install_script_filename}" ]; then
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
         run_setup_script install --path "${script_path%\/}/${install_script_filename}" ${params} ${additional}
