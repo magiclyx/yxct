@@ -1703,6 +1703,7 @@ function cmd_uninstall()
     fi
 
 
+    local result=
     if [ -n "${script_path}" ]; then
       # 如果提供了脚本路径
 
@@ -1714,10 +1715,12 @@ function cmd_uninstall()
       fi
 
       uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]} ${additional}
+      result=$?
     elif [ -n "${bin_path}" ]; then
       # 如果没提供脚本路径， 但bin_path不为空
 
       uninstall_by_bin_path --path "${bin_path}" ${params}
+      result=$?
     elif [ -n "${command}" ]; then
       # 如果没提供脚本路径和bin_path, 但提供了command
 
@@ -1726,12 +1729,18 @@ function cmd_uninstall()
       fi
 
       remove_command ${params}
+      result=$?
     else
       yxct_fatal "Invalid parameters, use --help to show more information."
     fi
   fi
 
 
+  if [[ ${result} == 0 ]]; then
+    yxct_msg "${command} uninstall success."
+  else
+    yxct_fatal "failed uninstall ${command}."
+  fi
 
 }
 
