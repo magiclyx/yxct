@@ -1167,11 +1167,24 @@ function setup_cellar()
 
     # copy file
     if [ -n "${install_script}" ]; then
-      yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
+      if [ -f "${install_script}" ]; then
+        yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
+      else
+        yxct_fatal "can not find a install script on setup cellar"
+      fi
     fi
 
     if [ -n "${install_file}" ]; then
-      yxct_verbcmd "${CP} ${install_file} ${cellar_path}"
+      if [ -f "${install_file}" ]; then
+        local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
+        if [ -n "${install_file_hash}" ]; then
+          echo "${install_file_hash}" > "${cellar_path}/hash"
+        else
+          yxct_fatal "failed to calculate the hash value on install file:${install_file}"
+        fi
+      else
+        yxct_fatal "can not find a install file on setup cellar"
+      fi
     fi
 
   elif [[ "${option}" == 'UNINSTALL' ]]; then
