@@ -136,28 +136,25 @@ function cmd_install()
   if [ -z "${library_path}" ]; then
     yxct_fatal "failed to get library path"
   fi
-
-  local library_dir=$(dirname "${library_path}")
-  if ! [ -d "${library_dir}" ]; then
-    yxct_verbcmd "mkdir -p ${library_dir}"
-    if ! [ -d "${library_dir}" ]; then
-      yxct_fatal "Failed to make dir:${library_dir}"
-    fi
+  yxct_verbcmd "mkdir -p ${library_path}"
+  if ! [ -d "${library_path}" ]; then
+    yxct_fatal "Failed to make dir:${library_path}"
   fi
-
 
   # copy index path to library
   if ! yxct_verbcmd "cp -R ${script_path}/index ${library_path}"; then
     yxct_fatal "failed to copy index path to ${library_path}"
   fi
 
-  if ! yxct_verbcmd "chmod -R 755 ${script_path}"; then
+
+  # change library path auth to 755
+  if ! yxct_verbcmd "chmod -R 755 ${library_path}"; then
     yxct_fatal "faild to change ${SCRIPT_NAME}'s authorization"
   fi
 
 
-  yxct_msg "Install success. You need to logout and re-login to reload all environment."
-
+  return 0
+  # yxct_msg "Install success. You need to logout and re-login to reload all environment."
 }
 
 function cmd_uninstall()
@@ -237,13 +234,7 @@ function cmd_uninstall()
   fi
 
 
-  if ${has_err}; then
-    yxct_fatal "failed to uninstall ${SCRIPT_NAME}"
-  else
-    yxct_msg "Unstall success. You need to logout and re-login to reload all environment."
-  fi
-
-  return 0
+  ${has_err} && return 1 || return 0
 
 }
 
