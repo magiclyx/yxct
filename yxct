@@ -327,6 +327,69 @@ function yxct_get_cellar_path()
   fi
 }
 
+function yxct_get_cellar_item_path()
+{
+  local command=
+  if ! [[ $1 =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  else
+    yxct_fatal "empty command on cellar item"
+  fi
+
+
+  local type=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      
+      --setup-script )
+       type=$1
+      ;;
+
+      --command-hash )
+       type=$1
+      ;;
+      
+      *)
+        echo "Invalid optional ${1}"
+      ;;
+    esac
+    shift
+  done
+
+  local cell_path=
+  if [[ $(yxct_os_type) == 'osx' ]]; then
+    cell_path="/usr/local/yuxi/${CMD}/cellar/${command}"
+  else
+    cell_path="/usr/yuxi/${CMD}/cellar/${command}"
+  fi
+
+
+  local result=0
+  if [[ "${type}" == '--setup-script' ]]; then
+    if [ -f "${cell_path}/.${CMD}.setup.sh" ]; then
+      echo "${cell_path}/.${CMD}.setup.sh"
+    elif [ -f "${cell_path}/.${CMD}.setup.py" ]; then
+      echo "${cell_path}/.${CMD}.setup.py"
+    elif [ -f "${cell_path}/.${CMD}.setup.rb" ]; then
+      echo "${cell_path}/.${CMD}.setup.rb"
+    else
+      result=1
+    fi
+  elif [[ "${type}" == '--command-hash' ]]; then
+    if [ -f "${cell_path}/hash" ]; then
+      grep -o "[^ ]\+\( \+[^ ]\+\)*" "${cell_path}/hash"
+      result=$?
+    else
+      result=1
+    fi
+  else
+    echo "${cell_path}"
+  fi
+
+  return ${result}
+}
+
 function yxct_set_info_level()
 {
   local info_level=$1
@@ -1057,6 +1120,20 @@ function uninstall_by_bin_path()
       if [[ "${filename}" != "${command}" ]]; then
         yxct_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
+
+      local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+      if [ -n "${cellar_hash}" ]; then
+        if ! check_file_hash "${bin_path}" "${cellar_hash}"; then
+          yxct_fatal "failed to check hash value for execute file:${bin_path}"
+        fi
+      fi
+
+        # # 要删除的文件必须和传入的文件相同
+        # if ! check_file_hash "${finded_exec_path}" "${file_hash}"; then
+        #   yxct_fatal "Script and execute file not matched:(${execute_file_path})"
+        # fi
+      # fi
+
     fi
 
     # 强制删除命令
@@ -1072,10 +1149,18 @@ function uninstall_by_bin_path()
       yxct_fatal "Can not find any script in path ${bin_path}"
     fi
 
-    local execute_file_path="${bin_path}/${command}"
     if ! [ -f "${execute_file_path}" ]; then
       echo_file "Script does not exist:${execute_file_path}"
     fi
+
+    local execute_file_path="${bin_path}/${command}"
+    local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+    if [ -n "${cellar_hash}" ]; then
+      if ! check_file_hash "${execute_file_path}" "${cellar_hash}"; then
+        yxct_fatal "failed to check hash value for execute file:${execute_file_path}"
+      fi
+    fi
+
     # 强制删除命令
     yxct_verbcmd "${RM} -f ${execute_file_path}"
     if [[ $? != 0 ]]; then
@@ -1716,21 +1801,30 @@ function cmd_uninstall()
     fi
 
 
-    local result=
-    if [ -n "${script_path}" ]; then
-      # 如果提供了脚本路径
+    # try fix setup script path from cellar if it not exist
+    local setup_script_path="${script_path}"
+    if [ -z "${setup_script_path}" ]; then
+      setup_script_path=$(yxct_get_cellar_item_path "${command}" --setup-script)
+    fi
 
-      if [ -n "${bin_path}" ]; then 
+
+    local result=
+    if [ -n "${setup_script_path}" ]; then
+      # 如果提供了脚本路径, 或从cellar找到了当时安装时的setup脚本
+
+      if [ -n "${bin_path}" ]; then
         params="${params} --bin-path ${bin_path}"
       fi
       if ${all}; then
         params="${params} --all"
       fi
 
-      uninstall_by_script_path --path "${script_path}" ${params} --ignore ${ignore_reg_list[@]} ${additional}
+
+      uninstall_by_script_path --path "${setup_script_path}" ${params} --ignore ${ignore_reg_list[@]} ${additional}
       result=$?
+
     elif [ -n "${bin_path}" ]; then
-      # 如果没提供脚本路径， 但bin_path不为空
+      # 如果找不到脚本路径， 但bin_path不为空
 
       uninstall_by_bin_path --path "${bin_path}" ${params}
       result=$?
@@ -1739,6 +1833,11 @@ function cmd_uninstall()
 
       if ${all}; then
         params="${params} --all"
+      fi
+
+      local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+      if [ -n "${cellar_hash}" ]; then
+        params="${params} --hash ${cellar_hash}"
       fi
 
       remove_command ${params}
