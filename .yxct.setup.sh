@@ -32,15 +32,6 @@ function _yxct_is_osx()
   ${_is_osx} && return 0 || return 1
 }
 
-function _yxct_get_library_path()
-{
-  if _yxct_is_osx; then
-    echo "/usr/local/yuxi/${SCRIPT_NAME}"
-  else
-    echo "/usr/yuxi/${SCRIPT_NAME}"
-  fi
-}
-
 
 function yxct_fatal()
 {
@@ -77,8 +68,8 @@ function cmd_install()
 {
   local script_path=$(pwd)
   local bin_path=
+  local lib_path=
   local command=
-  local nono=
 
   while [ $# -gt 0 ]; do
 		case $1 in
@@ -88,10 +79,16 @@ function cmd_install()
         bin_path=$1
       ;;
 
+      --lib-path )
+        shift
+        lib_path=$1
+      ;;
+
       --command )
         shift
         command=$1
       ;;
+
 
       *)
         yxct_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
@@ -99,6 +96,8 @@ function cmd_install()
     esac
     shift
   done
+
+  echo "==>>${lib_path}"
 
 
   if [[ -z "${command}" ]]; then
@@ -113,6 +112,10 @@ function cmd_install()
   fi
   if ! [[ -d "${bin_path}" ]]; then
     yxct_fatal "target directory not exist:${bin_path}"
+  fi
+
+  if [ -z "${lib_path}" ]; then
+    yxct_fatal "failed to get library path"
   fi
 
 
@@ -132,23 +135,20 @@ function cmd_install()
 
 
   # make library path
-  local library_path=$(_yxct_get_library_path)
-  if [ -z "${library_path}" ]; then
-    yxct_fatal "failed to get library path"
-  fi
-  yxct_verbcmd "mkdir -p ${library_path}"
-  if ! [ -d "${library_path}" ]; then
-    yxct_fatal "Failed to make dir:${library_path}"
+  local cmd_lib_path="${lib_path%\/}/${command}"
+  yxct_verbcmd "mkdir -p ${cmd_lib_path}"
+  if ! [ -d "${cmd_lib_path}" ]; then
+    yxct_fatal "Failed to make dir:${cmd_lib_path}"
   fi
 
   # copy index path to library
-  if ! yxct_verbcmd "cp -R ${script_path}/index ${library_path}"; then
-    yxct_fatal "failed to copy index path to ${library_path}"
+  if ! yxct_verbcmd "cp -R ${script_path}/index ${cmd_lib_path}"; then
+    yxct_fatal "failed to copy index path to ${cmd_lib_path}"
   fi
 
 
   # change library path auth to 755
-  if ! yxct_verbcmd "chmod -R 755 ${library_path}"; then
+  if ! yxct_verbcmd "chmod -R 755 ${cmd_lib_path}"; then
     yxct_fatal "faild to change ${SCRIPT_NAME}'s authorization"
   fi
 
@@ -159,9 +159,11 @@ function cmd_install()
 
 function cmd_uninstall()
 {
+
   local script_path=$(pwd)
   local command=
   local bin_path=
+  local lib_path=
 
   while [ $# -gt 0 ]; do
 		case $1 in
@@ -169,6 +171,11 @@ function cmd_uninstall()
       --bin-path )
         shift
         bin_path=$1
+      ;;
+
+      --lib-path )
+        shift
+        lib_path=$1
       ;;
 
       --command )
@@ -184,10 +191,11 @@ function cmd_uninstall()
   done
 
 
+
   if [[ -z "${command}" ]]; then
     yxct_fatal "Command is empty"
   fi
-  if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
+  if [[ "${command}" != 'yxct' ]]; then
     yxct_fatal "Unknown command ${SCRIPT_NAME}"
   fi
 
@@ -196,6 +204,10 @@ function cmd_uninstall()
   fi
   if ! [[ -d "${bin_path}" ]]; then
     yxct_fatal "target directory not exist:${bin_path}"
+  fi
+
+  if [ -z "${lib_path}" ]; then
+    yxct_fatal "failed to get library path"
   fi
 
 
@@ -222,15 +234,10 @@ function cmd_uninstall()
 
 
   # remove library
-  local library_path=$(_yxct_get_library_path)
-  if [ -n "${library_path}" ]; then
-    if ! yxct_verbcmd "rm -rf ${library_path}"; then
-      has_err=true
-      yxct_err "failed to remove library:${library_path}"
-    fi
-  else
+  local cmd_lib_path="${lib_path%\/}/${command}"
+  if ! yxct_verbcmd "rm -rf ${cmd_lib_path}"; then
     has_err=true
-    yxct_err "failed to get library path"
+    yxct_err "failed to remove library:${cmd_lib_path}"
   fi
 
 

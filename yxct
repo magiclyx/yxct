@@ -317,6 +317,17 @@ function yxct_shell_type()
 # Utility
 ###########################################################
 
+function yxct_get_library_path()
+{
+  local lib_path=
+  if [[ $(yxct_os_type) == 'osx' ]]; then
+    lib_path="/usr/local/yuxi"
+  else
+    lib_path="/usr/yuxi"
+  fi
+
+  echo "${lib_path}"
+}
 
 function yxct_get_cellar_item()
 {
@@ -352,36 +363,37 @@ function yxct_get_cellar_item()
     shift
   done
 
-  local cell_path=
-  if [[ $(yxct_os_type) == 'osx' ]]; then
-    cell_path="/usr/local/yuxi/${CMD}/cellar/${command}"
-  else
-    cell_path="/usr/yuxi/${CMD}/cellar/${command}"
+
+  # get cellar_path
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
   fi
 
 
   local result=0
+  local cellar_path="${library_path%\/}/${CMD}/cellar/${command}"
   if [[ "${type}" == '--setup-script' ]]; then
-    if [ -f "${cell_path}/.${CMD}.setup.sh" ]; then
-      echo "${cell_path}/.${CMD}.setup.sh"
-    elif [ -f "${cell_path}/.${CMD}.setup.py" ]; then
-      echo "${cell_path}/.${CMD}.setup.py"
-    elif [ -f "${cell_path}/.${CMD}.setup.rb" ]; then
-      echo "${cell_path}/.${CMD}.setup.rb"
+    if [ -f "${cellar_path}/.${CMD}.setup.sh" ]; then
+      echo "${cellar_path}/.${CMD}.setup.sh"
+    elif [ -f "${cellar_path}/.${CMD}.setup.py" ]; then
+      echo "${cellar_path}/.${CMD}.setup.py"
+    elif [ -f "${cellar_path}/.${CMD}.setup.rb" ]; then
+      echo "${cellar_path}/.${CMD}.setup.rb"
     else
       result=1
     fi
   elif [[ "${type}" == '--command-hash' ]]; then
-    if [ -f "${cell_path}/hash" ]; then
-      grep -o "[^ ]\+\( \+[^ ]\+\)*" "${cell_path}/hash"
+    if [ -f "${cellar_path}/hash" ]; then
+      grep -o "[^ ]\+\( \+[^ ]\+\)*" "${cellar_path}/hash"
       result=$?
     else
       result=1
     fi
   elif [[ "${type}" == '--cellar-path' ]]; then
-    echo "${cell_path}"
+    echo "${cellar_path}"
   else
-    echo "${cell_path}"
+    echo "${cellar_path}"
   fi
 
   return ${result}
@@ -746,6 +758,11 @@ function run_setup_script()
     yxct_verbcmd "chmod +x ${script_path}"
   fi
 
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+
 
   # 因为运行脚本，很可能使用了YXLib库，这里让运行脚本
   # 这里了设置yxlogger的环境变量
@@ -760,7 +777,7 @@ function run_setup_script()
   if [ -n "${bin_path}" ]; then
   # 如果给了bin_path, 则按照 bin_path 给卸载脚本
     pushd $(dirname "${script_path}") > /dev/null
-    yxct_run_script "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+    yxct_run_script "${script_path} ${option} --bin-path ${bin_path} --lib-path ${library_path} ${additional}"
     result="$?"
     popd > /dev/null
 
@@ -780,7 +797,7 @@ function run_setup_script()
       local bin_path=$(dirname "${finded_exec_path}")
 
       pushd $(dirname "${script_path}") > /dev/null
-      yxct_run_script "${script_path} ${option} --bin-path ${bin_path} ${additional}"
+      yxct_run_script "${script_path} ${option} --bin-path ${bin_path} --lib-path ${library_path} ${additional}"
       result="$?"
       popd > /dev/null    
 
@@ -796,7 +813,7 @@ function run_setup_script()
   else
     # 如果没找到command, 完全不知道 --bin-path , 直接调用脚本
     pushd $(dirname "${script_path}") > /dev/null
-    yxct_run_script "${script_path} ${option} ${additional}"
+    yxct_run_script "${script_path} ${option} --lib-path ${library_path} ${additional}"
     result="$?"
     popd > /dev/null
 
