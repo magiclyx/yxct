@@ -191,6 +191,10 @@ function yxct_verbose()
 
 function yxct_msg()
 {
+  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_INFO}" )); then
+    return
+  fi
+
   echo $*
 }
 
