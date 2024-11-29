@@ -1835,6 +1835,24 @@ function cmd_uninstall()
 }
 
 
+function cmd_list()
+{
+  local cmd_cellar_path=$(yxct_get_cellar_item "${CMD}" --cellar-path)
+  if [ -z "${cmd_cellar_path}" ]; then
+    yxct_fatal "failed to get command cellar path"
+  fi
+
+  local cellar_path=$(dirname "${cmd_cellar_path}")
+  if [ -z "${cellar_path}" ]; then
+    yxct_fatal "failed to get cellar path"
+  fi
+
+  for item in "${cellar_path%\/}"/*; do
+    basename "${item}"
+  done
+}
+
+
 ####################################################################################################
 # Entry
 ####################################################################################################
@@ -1886,6 +1904,8 @@ if [[ "${sub_cmd}" == 'install' ]]; then
   cmd_install $@
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
   cmd_uninstall $@
+elif [[ "${sub_cmd}" == 'list' ]]; then
+  cmd_list $@
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
   yxct_usage
   exit 0
