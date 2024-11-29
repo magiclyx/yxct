@@ -317,21 +317,8 @@ function yxct_shell_type()
 # Utility
 ###########################################################
 
-function yxct_get_cellar_path()
-{
-  local command=$1
-  if [ -z "${command}" ]; then
-    yxct_fatal "command is empty"
-  fi
 
-  if [[ $(yxct_os_type) == 'osx' ]]; then
-    echo "/usr/local/yuxi/${CMD}/cellar/${command}"
-  else
-    echo "/usr/yuxi/${CMD}/cellar/${command}"
-  fi
-}
-
-function yxct_get_cellar_item_path()
+function yxct_get_cellar_item()
 {
   local command=
   if ! [[ $1 =~ ^-.*$ ]]; then
@@ -351,6 +338,10 @@ function yxct_get_cellar_item_path()
       ;;
 
       --command-hash )
+       type=$1
+      ;;
+
+      --cellar-path )
        type=$1
       ;;
       
@@ -387,11 +378,118 @@ function yxct_get_cellar_item_path()
     else
       result=1
     fi
+  elif [[ "${type}" == '--cellar-path' ]]; then
+    echo "${cell_path}"
   else
     echo "${cell_path}"
   fi
 
   return ${result}
+}
+
+
+function setup_cellar()
+{
+  local command=
+
+  local install_script=
+  local install_file=
+
+  local option=
+  if yxct_strcontains "$1" "install" --ignorecase; then
+    option='INSTALL'
+    shift
+  elif yxct_strcontains "$1" "uninstall" --ignorecase; then
+    option='UNINSTALL'
+    shift
+  else
+    yxct_fatal "unknown option in setup cellar"
+  fi
+
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  else
+    yxct_fatal "command is empty"
+  fi
+
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+
+      --install-file )
+        shift
+        install_file=$1
+      ;; 
+
+      --install-script )
+        shift
+        install_script=$1
+      ;; 
+
+      *)
+        yxct_fatal "Invalid params:${$1}"
+    esac
+    shift
+  done
+
+
+  if [ -z "${command}" ]; then
+    yxct_fatal "command is empty"
+  fi
+
+
+  local cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
+  if [ -z "${cellar_path}" ]; then
+    yxct_fatal "failed to get cellar path of command:${command}"
+  fi
+
+
+  if [[ "${option}" == 'INSTALL' ]]; then
+
+    # create cellar dir
+    if [ -d "${cellar_path}" ]; then
+      yxct_err "cell path already exist, try remove it:${cellar_path}"
+      if ! yxct_verbcmd "${RM} -rf ${cellar_path}"; then
+        yxct_fatal "failed to remove old cellar dir:${cellar_path}"
+      fi
+    fi
+
+    if ! yxct_verbcmd "${MKDIR} -p ${cellar_path}"; then
+      yxct_fatal "failed to create dir:${cellar_path}"
+    fi
+
+    # copy file
+    if [ -n "${install_script}" ]; then
+      if [ -f "${install_script}" ]; then
+        yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
+      else
+        yxct_fatal "can not find a install script on setup cellar"
+      fi
+    fi
+
+    if [ -n "${install_file}" ]; then
+      if [ -f "${install_file}" ]; then
+        local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
+        if [ -n "${install_file_hash}" ]; then
+          echo "${install_file_hash}" > "${cellar_path}/hash"
+        else
+          yxct_fatal "failed to calculate the hash value on install file:${install_file}"
+        fi
+      else
+        yxct_fatal "can not find a install file on setup cellar"
+      fi
+    fi
+
+  elif [[ "${option}" == 'UNINSTALL' ]]; then
+    if [ -d "${cellar_path}" ]; then
+      yxct_verbcmd "${RM} -rf ${cellar_path}"
+    fi
+  else
+    yxct_fatal "unknown option:${option}"
+  fi
+
 }
 
 function yxct_set_info_level()
@@ -793,12 +891,7 @@ function remove_command()
   done
 
   # remove setter
-  local cellar_path=$(yxct_get_cellar_path "${command}")
-  if [ -z "${cellar_path}" ]; then
-    yxct_fatal "failed on get cellar path"
-  fi
-
-  setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+  setup_cellar uninstall "${command}"
 
   return 0
 }
@@ -1017,11 +1110,6 @@ function uninstall_by_script_path()
   #   all_params='--all'
   # fi
 
-  local cellar_path=$(yxct_get_cellar_path "${command}")
-  if [ -z "${cellar_path}" ]; then
-    yxct_fatal "failed on get cellar path"
-  fi
-
   local params=''
   #--command
   if [ -n "${command}" ]; then
@@ -1046,12 +1134,12 @@ function uninstall_by_script_path()
     # 如果文件是一个安装脚本, 直接调用脚本
       run_setup_script uninstall --path "${script_path}" ${params} ${additional}
       result=$?
-      setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+      setup_cellar uninstall "${command}"
     else
       # 如果文件不是安装脚本，尝试使用 command 和 bin_path卸载。 并用这个文件做hash验证并卸载，并删除
       remove_by_hash_file --path "${script_path}" ${params} ${additional}
       result=$?
-      setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+      setup_cellar uninstall "${command}"
     fi
   elif [ -d "${script_path}" ]; then
   # 如果脚本路径是一个目录
@@ -1060,7 +1148,7 @@ function uninstall_by_script_path()
     # 如果目录中找到安装脚本, 直接掉用那个安装脚本
       run_setup_script uninstall --path "${script_path%\/}/${uninstall_script_filename}" ${params} ${additional}
       result=$?
-      setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+      setup_cellar uninstall "${command}"
     else
     # 没找到那个安装脚本，查看是否是单脚本APP
       local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
@@ -1068,7 +1156,7 @@ function uninstall_by_script_path()
         # 如果文件夹下只找到一个文件，尝试使用 command 和 bin_path卸载。并使用这个文件做 hash 验证.
         remove_by_hash_file --path "${script_path%\/}/${singl_app_name}" ${params} ${additional}
         result=$?
-        setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+        setup_cellar uninstall "${command}"
       else
         # 如果不是单脚本APP, 不知道如何安装
         yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to delete the command."
@@ -1111,11 +1199,6 @@ function uninstall_by_bin_path()
   done
 
 
-  local cellar_path=$(yxct_get_cellar_path "${command}")
-  if [ -z "${cellar_path}" ]; then
-    yxct_fatal "failed on get cellar path"
-  fi
-
 
   if [ -f "${bin_path}" ]; then
   # 如果bin_path 是个文件, 直接删除， command 提供验证
@@ -1125,7 +1208,7 @@ function uninstall_by_bin_path()
         yxct_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
 
-      local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+      local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
       if [ -n "${cellar_hash}" ]; then
         if ! check_file_hash "${bin_path}" "${cellar_hash}"; then
           yxct_fatal "failed to check hash value for execute file:${bin_path}"
@@ -1145,7 +1228,7 @@ function uninstall_by_bin_path()
     if [[ $? != 0 ]]; then
       yxct_fatal "Fail to uninstall '${command}' on path:${bin_path}"
     fi
-    setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+    setup_cellar uninstall "${command}"
   elif [ -d "${bin_path}" ]; then
   # 如果bin_path 是个目录, 则command 不能为空, 根据command删除
 
@@ -1158,7 +1241,7 @@ function uninstall_by_bin_path()
     fi
 
     local execute_file_path="${bin_path}/${command}"
-    local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+    local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
     if [ -n "${cellar_hash}" ]; then
       if ! check_file_hash "${execute_file_path}" "${cellar_hash}"; then
         yxct_fatal "failed to check hash value for execute file:${execute_file_path}"
@@ -1170,7 +1253,7 @@ function uninstall_by_bin_path()
     if [[ $? != 0 ]]; then
       yxct_fatal "Fail to uninstall '${command}' in path:${bin_path}"
     fi
-    setup_cellar uninstall "${command}" --cellar-path "${cellar_path}"
+    setup_cellar uninstall "${command}"
   else
     # 既不是文件，也不是目录，无效bin_path
     yxct_fatal "Invalid path:${bin_path}"
@@ -1180,111 +1263,6 @@ function uninstall_by_bin_path()
 }
 
 
-function setup_cellar()
-{
-  local cellar_path=
-  local command=
-
-  local install_script=
-  local install_file=
-
-  local option=
-  if yxct_strcontains "$1" "install" --ignorecase; then
-    option='INSTALL'
-    shift
-  elif yxct_strcontains "$1" "uninstall" --ignorecase; then
-    option='UNINSTALL'
-    shift
-  else
-    yxct_fatal "unknown option in setup cellar"
-  fi
-
-  local command=
-  if ! [[ "$1" =~ ^-.*$ ]]; then
-    command=$1
-    shift
-  else
-    yxct_fatal "command is empty"
-  fi
-
-
-  while [ $# -gt 0 ]; do
-    case $1 in
-      --cellar-path )
-        shift
-        cellar_path=$1
-      ;;
-
-      --install-file )
-        shift
-        install_file=$1
-      ;; 
-
-      --install-script )
-        shift
-        install_script=$1
-      ;; 
-
-      *)
-        yxct_fatal "Invalid params:${$1}"
-    esac
-    shift
-  done
-
-  if [ -z "${cellar_path}" ]; then
-    yxct_fatal "cell-path is empty"
-  fi
-
-  if [ -z "${command}" ]; then
-    yxct_fatal "command is empty"
-  fi
-
-
-  if [[ "${option}" == 'INSTALL' ]]; then
-
-    # create cellar dir
-    if [ -d "${cellar_path}" ]; then
-      yxct_err "cell path already exist, try remove it:${cellar_path}"
-      if ! yxct_verbcmd "${RM} -rf ${cellar_path}"; then
-        yxct_fatal "failed to remove old cellar dir:${cellar_path}"
-      fi
-    fi
-
-    if ! yxct_verbcmd "${MKDIR} -p ${cellar_path}"; then
-      yxct_fatal "failed to create dir:${cellar_path}"
-    fi
-
-    # copy file
-    if [ -n "${install_script}" ]; then
-      if [ -f "${install_script}" ]; then
-        yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
-      else
-        yxct_fatal "can not find a install script on setup cellar"
-      fi
-    fi
-
-    if [ -n "${install_file}" ]; then
-      if [ -f "${install_file}" ]; then
-        local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
-        if [ -n "${install_file_hash}" ]; then
-          echo "${install_file_hash}" > "${cellar_path}/hash"
-        else
-          yxct_fatal "failed to calculate the hash value on install file:${install_file}"
-        fi
-      else
-        yxct_fatal "can not find a install file on setup cellar"
-      fi
-    fi
-
-  elif [[ "${option}" == 'UNINSTALL' ]]; then
-    if [ -d "${cellar_path}" ]; then
-      yxct_verbcmd "${RM} -rf ${cellar_path}"
-    fi
-  else
-    yxct_fatal "unknown option:${option}"
-  fi
-
-}
 
 ###########################################################
 # Usage
@@ -1576,13 +1554,9 @@ function cmd_install()
       bin_path="${DEFAULT_BIN_PATH}"
     fi
 
-    local cellar_path=$(yxct_get_cellar_path "${command}")
-    if [ -z "${cellar_path}" ]; then
-      yxct_fatal "failed on get cellar path"
-    fi
+
 
     local params=''
-
     # --command
     if [ -n "${command}" ]; then
       params="${params} --command ${command}"
@@ -1603,7 +1577,7 @@ function cmd_install()
       if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
       # 如果文件是一个安装脚本, 直接调用脚本
         if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-          setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-script "${script_path}"
+          setup_cellar install "${command}" --install-script "${script_path}"
         else
           yxct_fatal "failed on install ${command}"
         fi
@@ -1618,14 +1592,14 @@ function cmd_install()
         if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
         # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
           if install_file --file "${script_path}" "${force_params}" ${params}; then
-            setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-file "${script_path}" 
+            setup_cellar install "${command}" --install-file "${script_path}" 
           else
             yxct_fatal "failed on install ${command}"
           fi
         else
         # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
           if install_file --file "${script_path}" "${force_params}" ${params}; then
-            setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-file "${script_path}" 
+            setup_cellar install "${command}" --install-file "${script_path}" 
           else
             yxct_fatal "failed on install ${command}"
           fi
@@ -1640,7 +1614,7 @@ function cmd_install()
         # 如果目录中找到安装脚本, 直接掉用那个安装脚本
         local script_path="${script_path%\/}/${install_script_filename}"
         if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-          setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-script "${script_path}"
+          setup_cellar install "${command}" --install-script "${script_path}"
         else
           yxct_fatal "failed on install ${command}"
         fi
@@ -1659,14 +1633,14 @@ function cmd_install()
           if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
           # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
             if install_file --file "${app_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-file "${script_path}"
+              setup_cellar install "${command}" --install-file "${script_path}"
             else
               yxct_fatal "failed on install ${command}"
             fi
           else
           # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
             if install_file --file "${app_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --cellar-path "${cellar_path}" --install-file "${script_path}"
+              setup_cellar install "${command}" --install-file "${script_path}"
             else
               yxct_fatal "failed on install ${command}"
             fi
@@ -1808,7 +1782,7 @@ function cmd_uninstall()
     # try fix setup script path from cellar if it not exist
     local setup_script_path="${script_path}"
     if [ -z "${setup_script_path}" ]; then
-      setup_script_path=$(yxct_get_cellar_item_path "${command}" --setup-script)
+      setup_script_path=$(yxct_get_cellar_item "${command}" --setup-script)
     fi
 
 
@@ -1839,7 +1813,7 @@ function cmd_uninstall()
         params="${params} --all"
       fi
 
-      local cellar_hash=$(yxct_get_cellar_item_path "${command}" --command-hash)
+      local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
       if [ -n "${cellar_hash}" ]; then
         params="${params} --hash ${cellar_hash}"
       fi
