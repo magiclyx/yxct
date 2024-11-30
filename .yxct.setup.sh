@@ -97,8 +97,6 @@ function cmd_install()
     shift
   done
 
-  echo "==>>${lib_path}"
-
 
   if [[ -z "${command}" ]]; then
     yxct_fatal "Command is empty"
@@ -119,38 +117,38 @@ function cmd_install()
   fi
 
 
-
-  # verify the pwd
-  if ! [ -f "${script_path}/.yxct.setup.sh" ]; then
-    yxct_fatal "Current working directory not correct:${script_path}"
-  fi
-
-  # copy ${SCRIPT_NAME} to bin path.
-  if ! yxct_verbcmd "cp -f ${script_path%/}/${SCRIPT_NAME} ${bin_path%/}"; then
-    yxct_fatal "failed to copy ${SCRIPT_NAME} to ${SCRIPT_NAME}"
-  fi
-  if ! yxct_verbcmd "chmod +x ${bin_path%/}/${SCRIPT_NAME}"; then
-    yxct_fatal "failed to change yxct's authorization"
-  fi
-
-
-  # make library path
+  # remove old libpath if exist
   local cmd_lib_path="${lib_path%\/}/${command}"
+  if [ -d "${cmd_lib_path}" ]; then
+    if ! yxct_verbcmd "rm -rf ${cmd_lib_path}"; then
+      yxct_fatal "failed to remove old lib"
+    fi
+  fi
+
+
+  # create lib dir
   yxct_verbcmd "mkdir -p ${cmd_lib_path}"
   if ! [ -d "${cmd_lib_path}" ]; then
     yxct_fatal "Failed to make dir:${cmd_lib_path}"
   fi
 
-  # copy index path to library
-  if ! yxct_verbcmd "cp -R ${script_path}/index ${cmd_lib_path}"; then
-    yxct_fatal "failed to copy index path to ${cmd_lib_path}"
+
+  # copy whole dir to lib
+  yxct_verbcmd "cp -R ${PWD}/. ${cmd_lib_path}"
+  if [[ $? != 0 ]]; then
+    yxct_fatal "failed to cp yxlib to ${cmd_lib_path}"
+  fi
+  yxct_verbcmd "chmod -R 755 ${cmd_lib_path}"
+  if [[ $? != 0 ]]; then
+    yxct_fatal "faild to change yxlib's authorization"
   fi
 
 
-  # change library path auth to 755
-  if ! yxct_verbcmd "chmod -R 755 ${cmd_lib_path}"; then
-    yxct_fatal "faild to change ${SCRIPT_NAME}'s authorization"
+  # link command to bin path
+  if ! yxct_verbcmd "ln -sf ${cmd_lib_path}/yxct ${bin_path%/}/${command}"; then
+    yxct_fatal "faild to link command to ${bin_path}"
   fi
+
 
 
   return 0
@@ -196,7 +194,7 @@ function cmd_uninstall()
     yxct_fatal "Command is empty"
   fi
   if [[ "${command}" != 'yxct' ]]; then
-    yxct_fatal "Unknown command ${SCRIPT_NAME}"
+    yxct_fatal "Unknown command ${command}"
   fi
 
   if [ -z "${bin_path}" ]; then
