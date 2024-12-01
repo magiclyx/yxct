@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-CMD=$(basename $0)
+if [ -z "${CMD}" ]; then
+  CMD=$(basename $0)
+fi
+
 SOURCE="$0"
 DIR=
 while [ -h "$SOURCE"  ]; do
