@@ -1616,95 +1616,104 @@ function cmd_install()
     fi
 
 
+    local cmd_cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
+    if ! [ -d "${cmd_cellar_path}" ]; then
 
+      if [ -f "${script_path}" ]; then
+      # 如果脚本路径是一个文件
 
-    if [ -f "${script_path}" ]; then
-    # 如果脚本路径是一个文件
-
-      local script_file_name=$(basename ${script_path})
-      if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
-      # 如果文件是一个安装脚本, 直接调用脚本
-        if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-          setup_cellar install "${command}" --install-script "${script_path}"
-        else
-          yxct_fatal "failed on install ${command}"
-        fi
-      else
-      # 如果文件是不是一个安装脚本
-
-        local force_params=''
-        if ${force}; then
-          force_params='--force'
-        fi
-
-        if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
-        # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
-          if install_file --file "${script_path}" "${force_params}" ${params}; then
-            setup_cellar install "${command}" --install-file "${script_path}" 
+        local script_file_name=$(basename ${script_path})
+        if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
+        # 如果文件是一个安装脚本, 直接调用脚本
+          if run_setup_script install --path "${script_path}" ${params} ${additional}; then
+            setup_cellar install "${command}" --install-script "${script_path}"
           else
             yxct_fatal "failed on install ${command}"
           fi
         else
-        # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
-          if install_file --file "${script_path}" "${force_params}" ${params}; then
-            setup_cellar install "${command}" --install-file "${script_path}" 
-          else
-            yxct_fatal "failed on install ${command}"
-          fi
-        fi
-
-      fi
-    elif [ -d "${script_path}" ]; then
-      # 如果脚本路径是一个目录
-      local install_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
-      if [ -n "${install_script_filename}" ]; then
-        # 如果目录中找到安装脚本, 直接掉用那个安装脚本
-        local script_path="${script_path%\/}/${install_script_filename}"
-        if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-          setup_cellar install "${command}" --install-script "${script_path}"
-        else
-          yxct_fatal "failed on install ${command}"
-        fi
-      else
-
-        local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
-        if [ -n "${singl_app_name}" ]; then
-        # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，只剩下一个文件
+        # 如果文件是不是一个安装脚本
 
           local force_params=''
           if ${force}; then
             force_params='--force'
           fi
-           
-          local app_path="${script_path%\/}/${singl_app_name}"
-          if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
-          # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
-            if install_file --file "${app_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --install-file "${script_path}"
+
+          if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
+          # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+            if install_file --file "${script_path}" "${force_params}" ${params}; then
+              setup_cellar install "${command}" --install-file "${script_path}" 
             else
               yxct_fatal "failed on install ${command}"
             fi
           else
-          # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
-            if install_file --file "${app_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --install-file "${script_path}"
+          # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
+            if install_file --file "${script_path}" "${force_params}" ${params}; then
+              setup_cellar install "${command}" --install-file "${script_path}" 
             else
               yxct_fatal "failed on install ${command}"
             fi
           fi
-        else
-          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
-          yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
-        fi
 
+        fi
+      elif [ -d "${script_path}" ]; then
+        # 如果脚本路径是一个目录
+        local install_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
+        if [ -n "${install_script_filename}" ]; then
+          # 如果目录中找到安装脚本, 直接掉用那个安装脚本
+          local script_path="${script_path%\/}/${install_script_filename}"
+          if run_setup_script install --path "${script_path}" ${params} ${additional}; then
+            setup_cellar install "${command}" --install-script "${script_path}"
+          else
+            yxct_fatal "failed on install ${command}"
+          fi
+        else
+
+          local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+          if [ -n "${singl_app_name}" ]; then
+          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，只剩下一个文件
+
+            local force_params=''
+            if ${force}; then
+              force_params='--force'
+            fi
+            
+            local app_path="${script_path%\/}/${singl_app_name}"
+            if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
+            # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+              if install_file --file "${app_path}" "${force_params}" ${params}; then
+                setup_cellar install "${command}" --install-file "${script_path}"
+              else
+                yxct_fatal "failed on install ${command}"
+              fi
+            else
+            # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
+              if install_file --file "${app_path}" "${force_params}" ${params}; then
+                setup_cellar install "${command}" --install-file "${script_path}"
+              else
+                yxct_fatal "failed on install ${command}"
+              fi
+            fi
+          else
+            # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
+            yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+          fi
+
+        fi
+      else
+      # 既不是文件，也不是目录，无效script_path
+        yxct_fatal "Invalid script path:${script_path}"
       fi
-    else
-    # 既不是文件，也不是目录，无效script_path
-      yxct_fatal "Invalid script path:${script_path}"
-    fi
+
+    else # end of (if ! [ -d "${cmd_cellar_path}" ]; then)
+
+      yxct_msg "${command} is already installed."
+      exit 1
+
+    fi # end of (if ! [ -d "${cmd_cellar_path}" ]; then)
+
   fi
 
-  yxct_msg "${command} install success."
+  return 0
 }
 
 
@@ -1873,10 +1882,10 @@ function cmd_uninstall()
   fi
 
 
-  if [[ ${result} == 0 ]]; then
-    yxct_msg "${command} uninstall success."
-  else
+  if [[ "${result}" != 0 ]] then
     yxct_fatal "failed uninstall ${command}."
+  else
+    return ${result}
   fi
 
 }
@@ -1979,6 +1988,64 @@ function cmd_update()
 
 }
 
+function cmd_reinstall()
+{
+  local test=false
+  local info_level=
+  local additional=
+  local show_help=false
+
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi 
+
+
+  while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
+    case $1 in
+
+      --test )
+        test=true
+      ;;
+
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        additional="${additional} $1"
+      ;;
+    esac
+    shift
+  done
+
+  local params=
+  if ${test}; then
+    params="${params} --test"
+  fi
+
+  if [ -n "${info_level}" ]; then
+    params="${params} --info-level ${info_level}"
+  fi
+
+  if ! cmd_uninstall "${command}" ${params} ; then
+    yxct_fatal "failed on remove old ${command}"
+  fi
+
+  cmd_install "${command}" ${params} ${additional}
+}
+
 
 
 function cmd_list()
@@ -2052,9 +2119,17 @@ fi
 
 
 if [[ "${sub_cmd}" == 'install' ]]; then
-  cmd_install $@
+  if cmd_install $@; then
+    yxct_msg "${command} install success."
+  fi
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
-  cmd_uninstall $@
+  if cmd_uninstall $@; then
+    yxct_msg "${command} uninstall success."
+  fi
+elif [[ "${sub_cmd}" == 'reinstall' ]]; then
+  if cmd_reinstall $@; then
+    yxct_msg "${command} reinstall success."
+  fi
 elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
 elif [[ "${sub_cmd}" == 'list' ]]; then

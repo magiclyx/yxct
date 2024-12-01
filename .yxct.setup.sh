@@ -142,7 +142,6 @@ function cmd_install()
       local single_cmd_path="${item%\/}/${singl_app_name}"
       local single_cmd_hash=$(shasum -a 256 "${single_cmd_path}" | awk '{print $1}')
       if check_file_hash "${installed_cmd_path}" "${single_cmd_hash}"; then
-        echo "check_file_hash ${installed_cmd_path} ${single_cmd_hash}"
         install_command="${single_cmd_path}"
       fi
     fi
