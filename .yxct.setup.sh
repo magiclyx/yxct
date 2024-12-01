@@ -27,7 +27,18 @@ function _yxct_is_osx()
     else
       _is_osx=false
     fi
+YXCT_COMMAND_PATH="$( cd -P "$( dirname "$0"  )" && pwd  )/${SCRIPT_NAME}"
+if ! [ -f "${YXCT_COMMAND_PATH}" ]; then
+  YXCT_COMMAND_PATH=$(which "${SCRIPT_NAME}")
+  if [ -n "${YXCT_COMMAND_PATH}" ]; then
+    YXCT_COMMAND_DIR=
+    while [ -h "$YXCT_COMMAND_PATH"  ]; do
+      YXCT_COMMAND_DIR="$( cd -P "$( dirname "$YXCT_COMMAND_PATH"  )" && pwd  )"
+      YXCT_COMMAND_PATH="$(readlink "$YXCT_COMMAND_PATH")"
+      [[ $YXCT_COMMAND_PATH != /*  ]] && YXCT_COMMAND_PATH="$YXCT_COMMAND_DIR/$YXCT_COMMAND_PATH"
+    done
   fi
+fi
 
   ${_is_osx} && return 0 || return 1
 }
@@ -48,6 +59,9 @@ function yxct_err()
 {
   (>&2 echo "$(tput setaf 5)${1}$(tput sgr0)")
 }
+if [ -n "${YXCT_COMMAND_PATH}" ]; then
+  source "${YXCT_COMMAND_PATH}" -
+fi
 
 function yxct_verbcmd()
 {
