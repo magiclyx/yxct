@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 
 CMD=$(basename $0)
+SOURCE="$0"
+DIR=
+while [ -h "$SOURCE"  ]; do
+	DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+	SOURCE="$(readlink "$SOURCE")"
+	[[ $SOURCE != /*  ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+
+
 
 BIN_PATH='/bin'
 SBIN_PATH='/sbin'
@@ -1300,6 +1310,7 @@ cat <<EOF
   The following sub-command are allowed:
   install:      Install a command tool.
   uninstall:    Uninstall a command tool.
+  update:       Update to newest version of ${CMD}
 
   Other options
   Use '${CMD} uninstall --help' show this help information
@@ -1443,6 +1454,24 @@ $(__usage_install_destination_info)
   Use '${CMD} --help' show all help information
 EOF
 }
+
+
+function yxct_usage_update() {
+cat <<EOF
+  usage: ${CMD} update [--info-level xxx]
+  Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
+
+  The followint option are availiable:
+  --info-level            Command output level. 
+                          The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                          or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
 
 ###########################################################
 # Command
@@ -1851,6 +1880,99 @@ function cmd_uninstall()
 
 }
 
+function cmd_update()
+{
+  local repo="${DIR}"
+  local info_level=
+  local show_help=false
+
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        yxct_fatal "Invalid params:${$1}"
+    esac
+    shift
+  done
+
+
+  if ${show_help}; then
+    yxct_usage_update
+    exit 0
+  else
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+
+    # yxct 预计的环境，很大可能是没有git的...
+    if ! which git > /dev/null; then
+      yxct_fatal "can not find git command."
+    fi
+
+    yxct_msg "check update info..."
+    yxct_verbcmd "git -C ${repo} fetch"
+    local git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
+    local git_fetch_head=$(git -C "${repo}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+    yxct_verbose "head:${git_head}"
+    yxct_verbose "new:${git_fetch_head}"
+
+    if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+      yxct_msg "begin update..."
+      
+      # check the repo
+      local git_status=
+      if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
+        yxct_fatal "failed to get git status"
+      fi
+      
+      if [ -n "${git_status}" ]; then
+        yxct_msg "the repo is dirty, try recover..."
+        
+        # clean the repo
+        yxct_verbcmd "git -C ${repo} reset --hard HEAD --"
+        yxct_verbcmd "git -C ${repo} clean -fd"
+        
+        # check clean result
+        if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
+          yxct_fatal "failed to get git status after clean yxct repo"
+        fi
+        if [ -n "${git_status}" ]; then
+          yxct_fatal "failed to clean ${CMD} repo"
+        fi
+      fi
+      
+      #pull the repo
+      if ! yxct_verbcmd "git -C ${repo} pull"; then
+        yxct_fatal "failed to pull repo"
+      fi
+      
+      # re-check upgrade result.
+      git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
+      if [[ "${git_head}" == "${git_fetch_head}" ]]; then
+        yxct_msg 'upgrade success.'
+      else
+        yxct_fatal 'upgrade failed.'
+      fi
+      
+    else
+      yxct_msg "${CMD} is already the latest version"
+    fi
+
+  fi
+
+}
+
+
 
 function cmd_list()
 {
@@ -1921,6 +2043,8 @@ if [[ "${sub_cmd}" == 'install' ]]; then
   cmd_install $@
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
   cmd_uninstall $@
+elif [[ "${sub_cmd}" == 'update' ]]; then
+  cmd_update $@
 elif [[ "${sub_cmd}" == 'list' ]]; then
   cmd_list $@
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
