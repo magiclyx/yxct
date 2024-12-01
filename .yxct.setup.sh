@@ -1,13 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 
 
-SCRIPT_NAME=yxct
+CMD=yxct
 
 
-YXCT_COMMAND_PATH="$( cd -P "$( dirname "$0"  )" && pwd  )/${SCRIPT_NAME}"
+YXCT_COMMAND_PATH="$( cd -P "$( dirname "$0"  )" && pwd  )/${CMD}"
 if ! [ -f "${YXCT_COMMAND_PATH}" ]; then
-  YXCT_COMMAND_PATH=$(which "${SCRIPT_NAME}")
+  YXCT_COMMAND_PATH=$(which "${CMD}")
   if [ -n "${YXCT_COMMAND_PATH}" ]; then
     YXCT_COMMAND_DIR=
     while [ -h "$YXCT_COMMAND_PATH"  ]; do
@@ -21,7 +21,6 @@ fi
 if [ -n "${YXCT_COMMAND_PATH}" ]; then
   source "${YXCT_COMMAND_PATH}" -
 fi
-
 
 
 ####################################################################################################
@@ -55,7 +54,7 @@ function cmd_install()
 
 
       *)
-        yxct_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
+        yxct_fatal "unknown params $1."
       ;;
     esac
     shift
@@ -63,10 +62,10 @@ function cmd_install()
 
 
   if [[ -z "${command}" ]]; then
-    yxct_fatal "Command is empty"
+    yxct_fatal "command is empty"
   fi
-  if [[ "${command}" != "${SCRIPT_NAME}" ]]; then
-    yxct_fatal "Unknown command ${SCRIPT_NAME}"
+  if [[ "${command}" != "${CMD}" ]]; then
+    yxct_fatal "unknown command ${CMD}"
   fi
 
   if [ -z "${bin_path}" ]; then
@@ -93,7 +92,7 @@ function cmd_install()
   # create lib dir
   yxct_verbcmd "${MKDIR} -p ${cmd_lib_path}"
   if ! [ -d "${cmd_lib_path}" ]; then
-    yxct_fatal "Failed to make dir:${cmd_lib_path}"
+    yxct_fatal "failed to make dir:${cmd_lib_path}"
   fi
 
 
@@ -115,32 +114,18 @@ function cmd_install()
 
 
   # re-link all exist command to yxct
-  for file in "${lib_path%\/}"/*; do
+  for item in "${lib_path%\/}"/*; do
 
     # ignore yxct
-    local searched_command=$(basename "${file}")
-    if [[ "${searched_command}" == "${SCRIPT_NAME}" ]]; then
+    local searched_command=$(basename "${item}")
+    if [[ "${searched_command}" == "${CMD}" ]]; then
       continue
     fi
 
-    # search install script in existing command.
-    local install_script=
-    for contents in "${file%\/}"/\.*; do
-      local content_basename=$(basename "${contents}")
-      if echo "${content_basename}" | grep -Eq "^\s*\.${SCRIPT_NAME}.setup(\.sh|\.py|\.rb)?\s*$"; then
-        install_script="${content_basename}"
-      fi
-    done
-
-    # copy install script to cellar.
+    # search and copy install script in existing command.
+    local install_script=$(search_file_by_reg_list "${item}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
     if [ -n "${install_script}" ]; then
-      local cellar_path="${cmd_lib_path}/cellar/${searched_command}"
-
-      if ! yxct_verbcmd "${MKDIR} -p ${cellar_path}"; then
-        yxct_fatal "failed to make DIR:${cellar_path}"
-      fi
-
-      yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
+      setup_cellar install "${searched_command}" --install-script "${item%\/}/${install_script}"
     fi
 
 
@@ -180,7 +165,7 @@ function cmd_uninstall()
       ;;
 
       *)
-        yxct_fatal "Unknown params $1. Use '${CMD} info --help' to show help information"
+        yxct_fatal "Unknown params $1"
       ;;
     esac
     shift
@@ -215,7 +200,7 @@ function cmd_uninstall()
 
   local has_err=false
 
-  # remove ${SCRIPT_NAME} from bin-path
+  # remove ${CMD} from bin-path
   local execute_file="${bin_path}/${command}"
   if [ -x "${execute_file}" ]; then
     
@@ -224,7 +209,7 @@ function cmd_uninstall()
       has_err=true
     fi
   else
-    yxct_err "Can not found ${SCRIPT_NAME} on path:${execute_file}"
+    yxct_err "Can not found ${CMD} on path:${execute_file}"
     has_err=true
   fi
 
@@ -250,14 +235,14 @@ function cmd_uninstall()
 
 # Force root
 if [ "$(id -u)" -ne 0 ]; then
-  yxct_fatal "'${SCRIPT_NAME} should run with root"
+  yxct_fatal "'${CMD} should run with root"
 fi
 
 
 sub_cmd=$1
 shift
 if [[ -z ${sub_cmd} ]]; then
-  yxct_fatal "Param error. use '${CMD} --help' to show document"
+  yxct_fatal "param error."
 fi
 
 # echo "Here is setup script. sub-cmd:${sub_cmd}"
@@ -268,6 +253,6 @@ if [[ ${sub_cmd} == 'install' ]]; then
 elif [[ ${sub_cmd} == 'uninstall' ]]; then
   cmd_uninstall $@
 else
-  yxct_fatal "Unknown sub command:'${sub_cmd}'."
+  yxct_fatal "unknown sub command:'${sub_cmd}'."
 fi
 
