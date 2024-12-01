@@ -150,6 +150,40 @@ function cmd_install()
   fi
 
 
+  # re-link all exist command to yxct
+  for file in "${lib_path%\/}"/*; do
+
+    # ignore yxct
+    local searched_command=$(basename "${file}")
+    if [[ "${searched_command}" == "${SCRIPT_NAME}" ]]; then
+      continue
+    fi
+
+    # search install script in existing command.
+    local install_script=
+    for contents in "${file%\/}"/\.*; do
+      local content_basename=$(basename "${contents}")
+      if echo "${content_basename}" | grep -Eq "^\s*\.${SCRIPT_NAME}.setup(\.sh|\.py|\.rb)?\s*$"; then
+        install_script="${content_basename}"
+      fi
+    done
+
+    # copy install script to cellar.
+    if [ -n "${install_script}" ]; then
+      local cellar_path="${cmd_lib_path}/cellar/${searched_command}"
+
+      if ! yxct_verbcmd "mkdir -p ${cellar_path}"; then
+        yxct_fatal "failed to make DIR:${cellar_path}"
+      fi
+
+      yxct_verbcmd "cp ${install_script} ${cellar_path}"
+    fi
+
+
+
+  done
+
+
 
   return 0
   # yxct_msg "Install success. You need to logout and re-login to reload all environment."
