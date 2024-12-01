@@ -79,6 +79,11 @@ function cmd_install()
     yxct_fatal "failed to get library path"
   fi
 
+  # verify the pwd
+  if ! [ -f "${script_path}/.yxct.setup.sh" ]; then
+    yxct_fatal "Current working directory not correct:${script_path}"
+  fi
+
 
   # remove old libpath if exist
   local cmd_lib_path="${lib_path%\/}/${command}"
