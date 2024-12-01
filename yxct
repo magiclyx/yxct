@@ -2026,15 +2026,19 @@ if [[ $(yxct_os_type) == 'osx' ]]; then
 
   CP=/bin/cp
   RM=/bin/rm
+  CHMOD=/bin/chmod
   BASH=/bin/bash
   ENV=/usr/bin/env
   MKDIR=/bin/mkdir
+  LN=/bin/ln
 else
   CP=/usr/bin/cp
   RM=/usr/bin/rm
+  CHMOD=/usr/bin/chmod
   BASH=/bin/bash
   ENV=/usr/bin/env
   MKDIR=/usr/bin/mkdir
+  LN=/usr/bin/ln
 fi
 
 
