@@ -116,16 +116,44 @@ function cmd_install()
   # re-link all exist command to yxct
   for item in "${lib_path%\/}"/*; do
 
-    # ignore yxct
+    # 以文件夹名当作command名
     local searched_command=$(basename "${item}")
+
+    # ignore yxct
     if [[ "${searched_command}" == "${CMD}" ]]; then
       continue
     fi
 
-    # search and copy install script in existing command.
+    # 搜索安装脚本
     local install_script=$(search_file_by_reg_list "${item}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
-    if [ -n "${install_script}" ]; then
-      setup_cellar install "${searched_command}" --install-script "${item%\/}/${install_script}"
+
+    # 搜索单脚本文件
+    # 但文件名不必与command名相同
+    # command 必须在PATH中能搜到，且hash必须与但文件hash相同
+    local install_command=
+    local singl_app_name=$(file_name_if_single "${item}")
+    local installed_cmd_path=$(which "${searched_command}")
+    if [ -n "${singl_app_name}" ] && [ -n "${installed_cmd_path}" ]; then
+      local single_cmd_path="${item%\/}/${singl_app_name}"
+      local single_cmd_hash=$(shasum -a 256 "${single_cmd_path}" | awk '{print $1}')
+      if check_file_hash "${installed_cmd_path}" "${single_cmd_hash}"; then
+        echo "check_file_hash ${installed_cmd_path} ${single_cmd_hash}"
+        install_command="${single_cmd_path}"
+      fi
+    fi
+
+
+    # 连接至yxct
+    if [ -n "${install_script}" ] || [ -n "${install_command}" ]; then
+      local params=''
+      if [ -n "${install_script}" ]; then
+        params="--install-script ${item%\/}/${install_script}"
+      fi
+      if [ -n "${install_command}" ]; then
+        params="${params} --install-file ${install_command}"
+      fi
+
+      setup_cellar install "${searched_command}" ${params}
     fi
 
 
