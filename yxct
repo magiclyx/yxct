@@ -1828,11 +1828,6 @@ function cmd_uninstall()
       TEST_ONLY=true
     fi
 
-    if [[ "${command}" == 'yxlibinit' ]]; then
-      yxct_fatal "Test fatal"
-    fi
-
-
     if [ -n "${info_level}" ]; then
       yxct_set_info_level "${info_level}"
     fi
