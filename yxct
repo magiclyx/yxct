@@ -560,7 +560,7 @@ function yxct_set_info_level()
       YXCT_DEFAULT_LEVEL=${YXCT_LEVEL_ALL}
       export YXLOGGER_DEFAULT_LEVEL="${YXCT_LEVEL_ALL}"
     else
-      yx_fatal "unknown info level :${info_level}"
+      yxct_fatal "unknown info level :${info_level}"
     fi # end of (if yx_check_strfmt '^([0-9])+$' "${info_level}"; then)
 
   fi # end of 'if [ -n ${info_level} ]'
