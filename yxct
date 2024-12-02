@@ -227,6 +227,7 @@ function yxct_fatal()
   local reset=$(tput sgr0);
   
   (>&2 echo "${red}Fatal:${1}${reset}");
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
   exit 1;
 }
 
@@ -1719,7 +1720,9 @@ function cmd_install()
 
   fi
 
-  return 0
+  if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+    yxct_msg "${command} install success."
+  fi
 }
 
 
@@ -1825,6 +1828,10 @@ function cmd_uninstall()
       TEST_ONLY=true
     fi
 
+    if [[ "${command}" == 'yxlibinit' ]]; then
+      yxct_fatal "Test fatal"
+    fi
+
 
     if [ -n "${info_level}" ]; then
       yxct_set_info_level "${info_level}"
@@ -1888,10 +1895,12 @@ function cmd_uninstall()
   fi
 
 
-  if [[ "${result}" != 0 ]] then
-    yxct_fatal "failed uninstall ${command}."
-  else
-    return ${result}
+  if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+    if [[ "${result}" == 0 ]] then
+      yxct_msg "${command} uninstall success."
+    else
+      yxct_fatal "failed uninstall ${command}."
+    fi
   fi
 
 }
@@ -2045,11 +2054,25 @@ function cmd_reinstall()
     params="${params} --info-level ${info_level}"
   fi
 
+
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
   if ! cmd_uninstall "${command}" ${params} ; then
     yxct_fatal "failed on remove old ${command}"
   fi
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
 
-  cmd_install "${command}" ${params} ${additional}
+
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+  cmd_install "${command}" ${params} ${additional};
+  local result=$?
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+
+  if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+    if [[ "${result}" == 0 ]]; then
+      yxct_msg "${command} reinstall success."
+    fi
+  fi
 }
 
 
@@ -2124,18 +2147,21 @@ if [[ -z ${sub_cmd} ]]; then
 fi
 
 
+
+
+if [ -z "${YXCT_NESTED_FLAG}" ]; then
+  export YXCT_NESTED_FLAG=1
+else
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+fi
+
+
 if [[ "${sub_cmd}" == 'install' ]]; then
-  if cmd_install $@; then
-    yxct_msg "${command} install success."
-  fi
+  cmd_install $@;
 elif [[ "${sub_cmd}" == 'uninstall' ]]; then
-  if cmd_uninstall $@; then
-    yxct_msg "${command} uninstall success."
-  fi
+  cmd_uninstall $@
 elif [[ "${sub_cmd}" == 'reinstall' ]]; then
-  if cmd_reinstall $@; then
-    yxct_msg "${command} reinstall success."
-  fi
+  cmd_reinstall $@
 elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
 elif [[ "${sub_cmd}" == 'list' ]]; then
@@ -2144,7 +2170,9 @@ elif [[ "${sub_cmd}" == '-' ]]; then
   : # nested call. do nothing ...
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
   yxct_usage
-  exit 0
 else
   yxct_fatal "Unknown sub command:'${sub_cmd}'. Use ${CMD} --help tho show help information."
 fi
+
+
+YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
