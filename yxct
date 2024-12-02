@@ -4,14 +4,18 @@ if [ -z "${CMD}" ]; then
   CMD=$(basename $0)
 fi
 
-SOURCE="$0"
-DIR=
-while [ -h "$SOURCE"  ]; do
-	DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
-	SOURCE="$(readlink "$SOURCE")"
-	[[ $SOURCE != /*  ]] && SOURCE="$DIR/$SOURCE"
-done
-DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+
+if [ -z "${SOURCE}" ]; then
+  SOURCE="$0"
+  DIR=
+  while [ -h "$SOURCE"  ]; do
+    DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /*  ]] && SOURCE="$DIR/$SOURCE"
+  done
+  DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+fi
+
 
 
 
@@ -28,7 +32,9 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
 
 #Display comand only, not run
-TEST_ONLY=false
+if [ -z "${TEST_ONLY}" ]; then
+  TEST_ONLY=false
+fi
 
 ##############################################################
 # !! 因为yxct不能用YXLib, 下面这些变量必须与yxlogger 中定义的相同
