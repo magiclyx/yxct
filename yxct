@@ -2251,9 +2251,15 @@ function cmd_list()
 # 不要限制'PATH', 会引起`which`命令无法查找
 # PATH=/sbin:/bin:/usr/bin
 
-# 尝试继承当前环境中YXLib的日志级别。
+# 设置默认日志级别。
 if [ -n "${YXLOGGER_DEFAULT_LEVEL}" ]; then
+  # 尝试继承当前环境中YXLib的日志级别。
   yxct_set_info_level "${YXLOGGER_DEFAULT_LEVEL}"
+else
+  # 使用 yxct 级别 设置日志级别
+  # 注意: 这里扔需要设置一次
+  # 因为 yxct_set_inf_level 可能需要将默认参数透传给 YXLogger
+  yxct_set_info_level "${YXCT_DEFAULT_LEVEL}"
 fi
 
 # 如果syslog的tag没被设置(没有上层脚本), 则将其设置为${CMD}
