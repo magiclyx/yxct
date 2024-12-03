@@ -1519,6 +1519,76 @@ EOF
 }
 
 
+function yxct_usage_reinstall()
+{
+
+  function __usage_reinstall_destination_info()
+  {
+    if [[ "$(yxct_os_type)" == 'osx' ]]; then
+cat << EOF
+  --usr-local-bin           The command will be install to'/usr/local/bin' (It's the default optional)
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install
+        the command to '/usr/local/bin' as default.
+  
+  Un-support destination options on OSX:
+  --bin                     On OSX, this option will point to '/usr/loca/bin'
+  --sbin                    On OSX, this option will point to '/usr/loca/bin'
+  --usr-bin                 On OSX, this option will point to '/usr/loca/bin'
+  --usr-local-sbin          On OSX, this option will point to '/usr/loca/bin'
+EOF
+    else
+cat << EOF
+  --bin                     The command will be install to '/bin'
+  --sbin                    The command will be install to '/sbin'
+  --usr-bin                 The command will be install to '/usr/bin'
+  --usr-local-bin           The command will be install to '/usr/local/bin'
+  --usr-local-sbin          The command will be install to '/usr/local/sbin'
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install the
+        command to '/usr/local/bin' as default.
+EOF
+    fi
+  }
+
+
+cat <<EOF
+  usage: ${CMD} reinstall <command> <optional>
+  Reinstall a command
+
+  usage: ${CMD} reinstall --help
+  Show this help information
+
+  The following options are availiable:
+  --path <path>             1. Point to an install script or a folder that contains an install script.
+                            2. Point to a command file, ${CMD} will try to install the command to system.
+
+  --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no install
+                            script there. ${CMD} will not be able to determine which script to install.
+                            use '--ignore' and indicate regulars expression to ignore useless files.
+  
+  --force                   If an existing file on bin-path, remove it.
+
+
+  The followint options indicate destination path:
+$(__usage_reinstall_destination_info)
+  
+
+  The followint options use for debug
+  --test                    ${CMD} will not execute any comannd but output them into stdout instead.
+
+  --info-level              Command output level. 
+                            The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                            or a number greater than 0.
+
+  Other options
+  Use '${CMD} install --help' show all help information
+EOF
+}
+
+
 function yxct_usage_update() {
 cat <<EOF
   usage: ${CMD} update [--info-level xxx]
@@ -2105,42 +2175,50 @@ function cmd_reinstall()
   done
 
 
-  if [ -z "${command}" ]; then
-    yxct_fatal "Command is empty. Use --help to show more information."
-  fi
-  # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
-  if yxct_strcontains "${command}" "yxlib" --ignorecase; then
-    YXCT_USEYXLIB=false
-  fi
+  if ${show_help}; then
+    yxct_usage_reinstall
+    exit 0
+  else
 
-  local params=
-  if ${test}; then
-    params="${params} --test"
-  fi
-
-  if [ -n "${info_level}" ]; then
-    params="${params} --info-level ${info_level}"
-  fi
-
-
-  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
-  if ! cmd_uninstall "${command}" ${params} ; then
-    yxct_fatal "failed on remove old ${command}"
-  fi
-  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
-
-
-  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
-  cmd_install "${command}" ${params} ${additional};
-  local result=$?
-  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
-
-
-  if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
-    if [[ "${result}" == 0 ]]; then
-      yxct_msg "${command} reinstall success."
+    if [ -z "${command}" ]; then
+      yxct_fatal "Command is empty. Use --help to show more information."
     fi
+    # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
+    if yxct_strcontains "${command}" "yxlib" --ignorecase; then
+      YXCT_USEYXLIB=false
+    fi
+
+    local params=
+    if ${test}; then
+      params="${params} --test"
+    fi
+
+    if [ -n "${info_level}" ]; then
+      params="${params} --info-level ${info_level}"
+    fi
+
+
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+    if ! cmd_uninstall "${command}" ${params} ; then
+      yxct_fatal "failed on remove old ${command}"
+    fi
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+    cmd_install "${command}" ${params} ${additional};
+    local result=$?
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+
+    if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+      if [[ "${result}" == 0 ]]; then
+        yxct_msg "${command} reinstall success."
+      fi
+    fi
+
   fi
+
 }
 
 
