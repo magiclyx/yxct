@@ -1607,6 +1607,25 @@ cat <<EOF
 EOF
 }
 
+function yxct_usage_list()
+{
+cat <<EOF
+  usage: ${CMD} list [--info-level | --no-depend]
+  Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
+
+  The followint option are availiable:
+  --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level            Command output level. 
+                          The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                          or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
 
 ###########################################################
 # Command
