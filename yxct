@@ -25,6 +25,8 @@ if [ -z "${YXCT_USEYXLIB}" ]; then
   else
     export YXCT_USEYXLIB=false
   fi
+elif "${YXCT_USEYXLIB}"; then
+  source yxlogger
 fi
 
 
