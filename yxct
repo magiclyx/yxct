@@ -2027,7 +2027,7 @@ function cmd_uninstall()
 
 
   if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
-    if [[ "${result}" == 0 ]] then
+    if [[ "${result}" == 0 ]]; then
       yxct_msg "${command} uninstall success."
     else
       yxct_fatal "failed uninstall ${command}."
