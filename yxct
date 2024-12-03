@@ -17,6 +17,16 @@ if [ -z "${SOURCE}" ]; then
 fi
 
 
+if [ -z "${YXCT_USEYXLIB}" ]; then
+  if which yxlibinit > /dev/null; then
+    source yxlibinit -
+    source yxlogger
+    export YXCT_USEYXLIB=true
+  else
+    export YXCT_USEYXLIB=false
+  fi
+fi
+
 
 
 BIN_PATH='/bin'
@@ -201,59 +211,99 @@ function yxct_os_type()
 
 function yxct_verbose()
 {
-  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_VERBOSE}" )); then
-    return
+  if ${YXCT_USEYXLIB}; then
+    yx_verb $@
+  else
+
+    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_VERBOSE}" )); then
+      return
+    fi
+
+    (>&1 echo "$1")
+
   fi
 
-  (>&1 echo "$1")
+
 }
 
 function yxct_msg()
 {
-  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_INFO}" )); then
-    return
+  if ${YXCT_USEYXLIB}; then
+    yx_msg $@
+  else
+
+    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_INFO}" )); then
+      return
+    fi
+
+    echo $*
+
   fi
 
-  echo $*
+
 }
 
 function yxct_fatal()
 {
-  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_FATAL}" )); then
-    return
+  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+  if ${YXCT_USEYXLIB}; then
+    yx_fatal $@
+  else
+
+    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_FATAL}" )); then
+      return
+    fi
+
+    local red=$(tput setaf 1);
+    local reset=$(tput sgr0);
+    
+    (>&2 echo "${red}Fatal:${1}${reset}");
+    exit 1;
+
   fi
 
-  local red=$(tput setaf 1);
-  local reset=$(tput sgr0);
-  
-  (>&2 echo "${red}Fatal:${1}${reset}");
-  YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
-  exit 1;
+
 }
 
 
 function yxct_verbcmd()
 {
-  if ${TEST_ONLY}; then
-    yxct_verbose "Test-only:$*"
-    return
+  if ${YXCT_USEYXLIB}; then
+    if ${TEST_ONLY}; then
+      yx_verbcmd --test $@
+    else
+      yx_verbcmd $@
+    fi
   else
-    yxct_verbose "$*"
+    if ${TEST_ONLY}; then
+      yxct_verbose "Test-only:$*"
+      return
+    else
+      yxct_verbose "$*"
+    fi
+
+    $@
   fi
 
-  $@
+
 }
 
 function yxct_err()
 {
-  if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_ERROR}" )); then
-    return
+  if ${YXCT_USEYXLIB}; then
+    yx_err $@
+  else
+    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_ERROR}" )); then
+      return
+    fi
+
+    local magenta=$(tput setaf 5);
+    local reset=$(tput sgr0);
+
+    (>&2 echo "${magenta}${1}${reset}")
   fi
 
-  local magenta=$(tput setaf 5);
-  local reset=$(tput sgr0);
-
-  (>&2 echo "${magenta}${1}${reset}")
 }
 
 function yxct_str_checkfmt()
@@ -528,6 +578,10 @@ function yxct_set_info_level()
 {
   local info_level=$1
   if [ -n "${info_level}" ]; then
+
+    if ${YXCT_USEYXLIB}; then
+      yx_logger set --output-level "${info_level}"
+    fi
 
     if yxct_str_checkfmt '^([0-9])+$' "${info_level}"; then
       YXCT_DEFAULT_LEVEL="${info_level}"
@@ -1596,12 +1650,17 @@ function cmd_install()
       yxct_set_info_level "${info_level}"
     fi
 
-    if [ -z "${script_path}" ]; then
-      yxct_fatal "Script path is empty. Use --help to show more information."
-    fi
-
     if [ -z "${command}" ]; then
       yxct_fatal "Command is empty. Use --help to show more information."
+    fi
+    # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
+    # 为了保证输出正常，这个只能放在 'info_level' 之后
+    if yxct_strcontains "${command}" "yxlib" --ignorecase; then
+      export YXCT_USEYXLIB=false
+    fi 
+
+    if [ -z "${script_path}" ]; then
+      yxct_fatal "Script path is empty. Use --help to show more information."
     fi
 
 
@@ -1835,6 +1894,11 @@ function cmd_uninstall()
     if [ -z "${command}" ]; then
       yxct_fatal "Command is empty. Use --help to show more information."
     fi
+    # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
+    # 为了保证输出正常，这个只能放在 'info_level' 之后
+    if yxct_strcontains "${command}" "yxlib" --ignorecase; then
+      YXCT_USEYXLIB=false
+    fi
 
 
     local params=''
@@ -2039,6 +2103,15 @@ function cmd_reinstall()
     esac
     shift
   done
+
+
+  if [ -z "${command}" ]; then
+    yxct_fatal "Command is empty. Use --help to show more information."
+  fi
+  # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
+  if yxct_strcontains "${command}" "yxlib" --ignorecase; then
+    YXCT_USEYXLIB=false
+  fi
 
   local params=
   if ${test}; then
