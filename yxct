@@ -1442,6 +1442,8 @@ $(__usage_install_destination_info)
   The followint options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
 
+  --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
+
   --info-level              Command output level. 
                             The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
                             or a number greater than 0.
@@ -1510,6 +1512,8 @@ $(__usage_install_destination_info)
 
   The followint options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
+
+  --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level              Command output level. 
                             The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
@@ -1581,6 +1585,8 @@ $(__usage_reinstall_destination_info)
   The followint options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
 
+  --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
+
   --info-level              Command output level. 
                             The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
                             or a number greater than 0.
@@ -1591,12 +1597,15 @@ EOF
 }
 
 
-function yxct_usage_update() {
+function yxct_usage_update()
+{
 cat <<EOF
   usage: ${CMD} update [--info-level xxx]
   Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
 
   The followint option are availiable:
+  --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
+
   --info-level            Command output level. 
                           The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
                           or a number greater than 0.
@@ -1643,6 +1652,7 @@ function cmd_install()
   local test=false
 
   local info_level=
+  local no_depend=false
   local show_help=false
 
   local command=
@@ -1707,6 +1717,10 @@ function cmd_install()
         test=true
       ;;
 
+      --no-depend )
+        no_depend=true
+      ;;
+
       --info-level )
         shift
         info_level=$1
@@ -1732,6 +1746,11 @@ function cmd_install()
     yxct_usage_install
     exit 0
   else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
     if ${test}; then
       TEST_ONLY=true
     fi
@@ -1886,6 +1905,7 @@ function cmd_uninstall()
   local test=false
 
   local info_level=
+  local no_depend=false
   local show_help=false
 
   local command=
@@ -1946,6 +1966,10 @@ function cmd_uninstall()
         bin_path=$1
       ;;
 
+      --no-depend )
+        no_depend=true
+      ;;
+
       --info-level )
         shift
         info_level=$1
@@ -1974,6 +1998,11 @@ function cmd_uninstall()
     yxct_usage_uninstall
     exit 0
   else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
     if ${test}; then
       TEST_ONLY=true
     fi
@@ -1988,7 +2017,7 @@ function cmd_uninstall()
     # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
     # 为了保证输出正常，这个只能放在 'info_level' 之后
     if yxct_strcontains "${command}" "yxlib" --ignorecase; then
-      YXCT_USEYXLIB=false
+      export YXCT_USEYXLIB=false
     fi
 
 
@@ -2059,6 +2088,7 @@ function cmd_update()
 {
   local repo="${DIR}"
   local info_level=
+  local no_depend=false
   local show_help=false
 
   while [ $# -gt 0 ]; do
@@ -2066,6 +2096,10 @@ function cmd_update()
       --info-level )
         shift
         info_level=$1
+      ;;
+
+      --no-depend )
+        no_depend=true
       ;;
 
       --help | h )
@@ -2083,6 +2117,10 @@ function cmd_update()
     yxct_usage_update
     exit 0
   else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
 
     if [ -n "${info_level}" ]; then
       yxct_set_info_level "${info_level}"
@@ -2158,6 +2196,7 @@ function cmd_reinstall()
   local test=false
   local info_level=
   local additional=
+  local no_depend=false
   local show_help=false
 
   local command=
@@ -2177,6 +2216,10 @@ function cmd_reinstall()
 
       --test )
         test=true
+      ;;
+
+      --no-depend )
+        no_depend=true
       ;;
 
       --info-level )
@@ -2201,17 +2244,25 @@ function cmd_reinstall()
     exit 0
   else
 
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
     if [ -z "${command}" ]; then
       yxct_fatal "Command is empty. Use --help to show more information."
     fi
     # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
     if yxct_strcontains "${command}" "yxlib" --ignorecase; then
-      YXCT_USEYXLIB=false
+      export YXCT_USEYXLIB=false
     fi
 
     local params=
     if ${test}; then
       params="${params} --test"
+    fi
+
+    if ${no_depend}; then
+      params="${params} --no-depend"
     fi
 
     if [ -n "${info_level}" ]; then
@@ -2246,19 +2297,68 @@ function cmd_reinstall()
 
 function cmd_list()
 {
-  local cmd_cellar_path=$(yxct_get_cellar_item "${CMD}" --cellar-path)
-  if [ -z "${cmd_cellar_path}" ]; then
-    yxct_fatal "failed to get command cellar path"
-  fi
+  local info_level=
+  local no_depend=false
+  local show_help=false
 
-  local cellar_path=$(dirname "${cmd_cellar_path}")
-  if [ -z "${cellar_path}" ]; then
-    yxct_fatal "failed to get cellar path"
-  fi
+  while [ $# -gt 0 ]; do
 
-  for item in "${cellar_path%\/}"/*; do
-    basename "${item}"
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
+    case $1 in
+
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --no-depend )
+        no_depend=true
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        additional="${additional} $1"
+      ;;
+    esac
+    shift
   done
+
+  if ${show_help}; then
+    yxct_usage_list
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+
+    local cmd_cellar_path=$(yxct_get_cellar_item "${CMD}" --cellar-path)
+    if [ -z "${cmd_cellar_path}" ]; then
+      yxct_fatal "failed to get command cellar path"
+    fi
+
+    local cellar_path=$(dirname "${cmd_cellar_path}")
+    if [ -z "${cellar_path}" ]; then
+      yxct_fatal "failed to get cellar path"
+    fi
+
+    for item in "${cellar_path%\/}"/*; do
+      basename "${item}"
+    done
+
+  fi
+
 }
 
 
