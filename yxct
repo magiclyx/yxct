@@ -253,14 +253,13 @@ function yxct_fatal()
     yx_fatal $@
   else
 
-    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_FATAL}" )); then
-      return
+    if (( "${YXCT_DEFAULT_LEVEL}" >= "${YXCT_LEVEL_FATAL}" )); then
+      local red=$(tput setaf 1);
+      local reset=$(tput sgr0);
+      
+      (>&2 echo "${red}Fatal:${1}${reset}");
     fi
 
-    local red=$(tput setaf 1);
-    local reset=$(tput sgr0);
-    
-    (>&2 echo "${red}Fatal:${1}${reset}");
     exit 1;
 
   fi
