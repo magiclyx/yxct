@@ -1926,10 +1926,12 @@ function cmd_install()
 
 function cmd_uninstall()
 {
+  local script_path=
   local bin_path=
   local -a ignore_reg_list=
   local additional=
 
+  local force=false
   local all=false
   local test=false
 
