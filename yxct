@@ -1429,6 +1429,14 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. Point to an install script or a folder that contains an install script.
                             2. Point to a command file, ${CMD} will try to install the command to system.
+                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
+                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
+                            information).
+  
+  --pass <pass>             When installing through a package, if the package requires a password,
+                            you can provide it with '--pass' parameter. If the package requires a password,
+                            but the '--pass' parameter is not used. ${CMD} will ask for the password during
+                            the installation process
 
   --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no install
                             script there. ${CMD} will not be able to determine which script to install.
@@ -1499,6 +1507,14 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. point to an uninstall script or a folder that contains an uninstall script.
                             2. point to a command file, ${CMD} will try to uninstall a same command on system.
+                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
+                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
+                            information).
+  
+  --pass <pass>             When installing through a package, if the package requires a password,
+                            you can provide it with '--pass' parameter. If the package requires a password,
+                            but the '--pass' parameter is not used. ${CMD} will ask for the password during
+                            the installation process
 
   --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no uninstall
                             script there.  ${CMD} will not be able to determine which script to uninstall.
@@ -1572,6 +1588,14 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. Point to an install script or a folder that contains an install script.
                             2. Point to a command file, ${CMD} will try to install the command to system.
+                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
+                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
+                            information).
+  
+  --pass <pass>             When installing through a package, if the package requires a password,
+                            you can provide it with '--pass' parameter. If the package requires a password,
+                            but the '--pass' parameter is not used. ${CMD} will ask for the password during
+                            the installation process
 
   --ignore <reg1> <reg2>..  If '--path' point to a folder contains mutiple script but there is no install
                             script there. ${CMD} will not be able to determine which script to install.
@@ -1674,6 +1698,7 @@ function cmd_install()
 {
   local script_path=
   local bin_path=
+  local pass=
   local -a ignore_reg_list=
   local additional=
 
@@ -1711,6 +1736,11 @@ function cmd_install()
       --ignore )
         is_in_ignore=true
         force=true
+      ;;
+
+      --pass )
+        shift
+        pass=$1
       ;;
 
       --bin )
@@ -1805,6 +1835,33 @@ function cmd_install()
 
     if [ -z "${bin_path}" ]; then
       bin_path="${DEFAULT_BIN_PATH}"
+    fi
+
+
+    # extra package if need
+    if [ -f "${script_path}" ]; then
+      local package_name=$(basename "${script_path}")
+      if [[ "${package_name##*.}" == 'yxct' ]]; then
+
+        local tmp_path=$(mktemp -d)
+        if [ ! -d "${tmp_path}" ]; then
+          yxct_fatal "Failed to create a temp directory"
+        fi
+        
+        local pass_params=
+        if [ -n "${pass}" ]; then
+          pass_params="--pass ${pass}"
+        fi
+
+        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+        if ! cmd_pack unpack --pack-path "${script_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
+          yxct_fatal "failed to unpack pakcage:${package}"
+        fi
+        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+        script_path="${tmp_path%\/}/${package_name%.*}"
+        echo "new_path:${script_path}"
+      fi
     fi
 
 
@@ -1928,6 +1985,7 @@ function cmd_uninstall()
 {
   local script_path=
   local bin_path=
+  local pass=
   local -a ignore_reg_list=
   local additional=
 
@@ -1961,6 +2019,11 @@ function cmd_uninstall()
 
       --all )
         all=true
+      ;;
+
+      --pass )
+        shift
+        pass=$1
       ;;
 
       --ignore )
@@ -2049,6 +2112,32 @@ function cmd_uninstall()
     # 为了保证输出正常，这个只能放在 'info_level' 之后
     if yxct_strcontains "${command}" "yxlib" --ignorecase; then
       export YXCT_USEYXLIB=false
+    fi
+
+
+    # extra package if need
+    if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
+      local package_name=$(basename "${script_path}")
+      if [[ "${package_name##*.}" == 'yxct' ]]; then
+
+        local tmp_path=$(mktemp -d)
+        if [ ! -d "${tmp_path}" ]; then
+          yxct_fatal "Failed to create a temp directory"
+        fi
+        
+        local pass_params=
+        if [ -n "${pass}" ]; then
+          pass_params="--pass ${pass}"
+        fi
+
+        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+        if ! cmd_pack unpack --pack-path "${script_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
+          yxct_fatal "failed to unpack pakcage:${package}"
+        fi
+        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+        script_path="${tmp_path%\/}/${package_name%.*}"
+      fi
     fi
 
 
