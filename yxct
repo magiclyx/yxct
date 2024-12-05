@@ -1839,7 +1839,7 @@ function cmd_install()
 
 
     # extra package if need
-    if [ -f "${script_path}" ]; then
+    if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
       local package_name=$(basename "${script_path}")
       if [[ "${package_name##*.}" == 'yxct' ]]; then
 
