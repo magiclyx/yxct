@@ -1375,8 +1375,10 @@ cat <<EOF
   The following sub-command are allowed:
   install:      Install a command tool.
   uninstall:    Uninstall a command tool.
+  reinstall:    Reinstall a command tool.
   update:       Update to newest version of ${CMD}
   pack:         Create or extra a ${CMD} package.
+  list:         list all installed command.
 
   Other options
   Use '${CMD} uninstall --help' show this help information
@@ -1648,7 +1650,7 @@ function yxct_usage_list()
 {
 cat <<EOF
   usage: ${CMD} list [--info-level | --no-depend]
-  Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
+  List all installed command tool.
 
   The followint option are availiable:
   --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
