@@ -2610,7 +2610,9 @@ function cmd_pack()
       if ! yxct_verbcmd "${CP} ${force_params} ${target_file} ${pack_file}"; then
         yxct_fatal "failed to copy file to ${pack_file}"
       else
-        yxct_msg "pack success"
+        if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+          yxct_msg "pack success"
+        fi
       fi
 
      
@@ -2714,7 +2716,9 @@ function cmd_pack()
       if ! yxct_verbcmd "${CP} ${params} ${target_path%\/}/${repo_name} ${repo_path}"; then
         yxct_fatal "failed to copy file to ${pack_file}"
       else
-        yxct_msg "unpack success"
+        if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+          yxct_msg "unpack success"
+        fi
       fi
 
 
