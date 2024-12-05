@@ -1376,6 +1376,7 @@ cat <<EOF
   install:      Install a command tool.
   uninstall:    Uninstall a command tool.
   update:       Update to newest version of ${CMD}
+  pack:         Create or extra a ${CMD} package.
 
   Other options
   Use '${CMD} uninstall --help' show this help information
@@ -1604,6 +1605,33 @@ cat <<EOF
   Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
 
   The followint option are availiable:
+  --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level            Command output level. 
+                          The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                          or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
+function yxct_usage_pack()
+{
+cat <<EOF
+  usage: ${CMD} pack <--repo-path path> <--pack-path path> [--pass xxx | --pass] [--force|--info-level]
+  Create a ${CMD} installation pack from script.
+
+  usage: ${CMD} unpack <--repo-path path> <--pack-path path> [--pass xxx | --pass] [--force|--info-level]
+  Extra script from ${CMD} installation pack
+
+  The followint option are availiable:
+  --pass | --pass <xxx>   It's meand the installation package requires a password, and if no password
+                          parameter is provided, ${CMD} will ask for a password during
+                          the packing/unpacking process
+  --force                 If an existing file or directory on target path, remove it.
+
   --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level            Command output level. 
@@ -2294,6 +2322,316 @@ function cmd_reinstall()
 }
 
 
+function cmd_pack()
+{
+  local repo_path=
+  local pack_path=
+  local pass=
+  # local command=
+  local encrypt=false
+  local force=false
+
+  local info_level=
+  local no_depend=false
+  local show_help=false
+  local option=
+
+  if ! [[ $1 =~ ^-.*$ ]]; then
+    if yxct_strcontains "${1}" "pack" --ignorecase; then
+      option='PACK'
+    elif yxct_strcontains "${1}" "unpack" --ignorecase; then
+      option='UNPACK'
+    else
+      option=$1
+    fi
+    shift
+  fi
+
+  # if ! [[ $1 =~ ^-.*$ ]]; then
+  #   command=$1
+  #   shift
+  # fi
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
+    case $1 in
+
+      --repo-path )
+        cursor=$1
+      ;;
+
+      --pack-path )
+        cursor=$1
+      ;;
+
+      --pass )
+        encrypt=true
+        cursor=$1
+      ;;
+
+      --force )
+        cursor=
+        force=true
+      ;;
+
+      --info-level )
+        shift
+        cursor=
+        info_level=$1
+      ;;
+
+      --no-depend )
+        cursor=
+        no_depend=true
+      ;;
+
+      --help | h )
+        cursor=
+        show_help=true
+      ;;
+
+      *)
+        if [[ $1 =~ ^-.*$ ]]; then
+          cursor=
+        fi
+        if [ -n "${cursor}" ]; then
+          if [[ "${cursor}" == '--repo-path' ]]; then
+            repo_path=$(echo "${repo_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--pack-path' ]]; then
+            pack_path=$(echo "${pack_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--pass' ]]; then
+            pass=$(echo "${pass} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          else
+            yx_fatal "Invalid name of ${cursor} $1"
+          fi
+        else
+          yx_fatal "Invalid optional ${1}"
+        fi
+      ;;
+    esac
+    shift
+  done
+
+  if ${show_help}; then
+    yxct_usage_pack
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+
+    if [[ "${option}" == 'PACK' ]]; then
+      
+
+      if [ -z "${repo_path}" ]; then
+        yxct_fatal "repo path is empty. Use '${CMD} pack --help' to show help information"
+      fi
+
+      if [ -z "${pack_path}" ]; then
+        yxct_fatal "package path is empty"
+      fi
+
+      # Create a temp directory
+      local tmp_path=$(mktemp -d)
+      if [ ! -d "${tmp_path}" ]; then
+        yxct_fatal "Failed to create a temp directory"
+      fi
+
+      local command=$(basename "${repo_path}")
+
+      # Compress the package
+      local tar_file="${tmp_path%\/}/tar"
+      pushd $(dirname "${repo_path}") > /dev/null || yxct_fatal "failed to pushd ${repo_path}"
+      yxct_verbcmd "${TAR} --create --file ${tar_file} ${command}"
+      popd > /dev/null || yxct_fatal "failed to popd from ${repo_path}"
+
+
+      # encrypt if need
+      local target_file=
+      local pack_file=
+      if ${encrypt}; then
+
+        local encrypt_file="${tmp_path%\/}/encrypted"
+        if [ -z "${pass}" ]; then
+          if [ -z "${pkg_pass}" ]; then
+            local pass1=
+            local pass2=
+            echo -n "Enter encryption password:"
+            read -s pass1
+            echo ""
+
+            echo -n "Verifying encryption password:"
+            read -s pass2
+            echo ""
+
+            if [[ "${pass1}" == "${pass2}" ]]; then
+              pass="${pass1}"
+            else
+              echo_fatal "Password not matched"
+            fi
+          fi
+        fi
+
+        if ! yxct_verbcmd "${OPENSSL} enc -e -aes256 -iter 100 -pbkdf2 -in ${tar_file} -out ${encrypt_file} --pass pass:${pass}"; then
+          yxct_fatal "Failed to encrypt package"
+        fi
+
+        target_file="${encrypt_file}"
+        # pack_file="${pack_path}/${command}.yxct"
+      
+      else
+        target_file="${tar_file}"
+        # pack_file="${pack_path}/${command}.yxct"
+      fi
+
+      # Make pack file's dir if not exist
+      if ! [ -d "${pack_path}" ]; then
+        yxct_err "${pack_path} not exist, try create one"
+        yxct_verbcmd "${MKDIR} -p ${pack_path}" > /dev/null
+        if ! [ -d "${pack_path}" ]; then
+          yxct_fatal "failed to mkdir ${pack_path}"
+        fi
+      fi
+
+      # copy file
+      local force_params=''
+      local pack_file="${pack_path}/${command}.yxct"
+      if [ -f "${pack_file}" ]; then
+        if "${force}"; then
+          force_params="-f"
+        else
+          yxct_fatal "file ${pack_file} already exist, use '--force' to replace it or '${CMD} pack --help' to show help information"
+        fi
+      fi
+
+      if ! yxct_verbcmd "${CP} ${force_params} ${target_file} ${pack_file}"; then
+        yxct_fatal "failed to copy file to ${pack_file}"
+      else
+        yxct_msg "pack success"
+      fi
+
+     
+    elif [[ "${option}" == 'UNPACK' ]]; then
+      if [ -z "${repo_path}" ]; then
+        yxct_fatal "repo path is empty. Use '${CMD} pack --help' to show help information"
+      fi
+
+      if [ -z "${pack_path}" ]; then
+        yxct_fatal "package path is empty"
+      elif ! [ -f "${pack_path}" ]; then
+        yxct_fatal "package path ${pack_path} not exist"
+      fi
+
+
+      # Create a temp directory
+      local tmp_path=$(mktemp -d)
+      if [ ! -d "${tmp_path}" ]; then
+        yxct_fatal "Failed to create a temp directory"
+      fi
+
+
+
+
+      # decrypt if need
+      # target_path & repo_path
+      local target_path=
+      local filename=$(basename "${pack_path}")
+      if ! "${TAR}" -tf "${pack_path}" &> /dev/null; then
+        local decrpyt_file="${tmp_path%\/}/decrypt"
+
+        local pass_param=''
+        if [ -n "${pass}" ]; then
+          pass_param="--pass pass:${pass}"
+        fi
+        if ! "${OPENSSL}" enc -d -aes256 -iter 100 -pbkdf2 -in "${pack_path}" --out "${decrpyt_file}" ${pass_param}; then
+          yxct_fatal "failed to dencrypt file:${pack_path}"
+        fi
+
+        target_path="${decrpyt_file}"
+      else
+        target_path="${pack_path}"
+      fi
+
+
+      # extract package
+      local extra_path="${tmp_path%\/}/extra"
+      if ! "${MKDIR}" -p "${extra_path}"; then
+        yxct_fatal "failed to make dir:${target_path}"
+      fi
+      if ! yxct_verbcmd "/usr/bin/tar --extract --file=${target_path} --directory=${extra_path}"; then
+        yxct_fatal "failed to extract package"
+      fi
+      target_path="${extra_path}"
+
+
+      # search extract result
+      # must only one file or directory in package.
+      local repo_name=
+      local finded=false
+      for file in "${target_path%\/}"/*; do
+        if ${finded}; then
+          yxct_fatal "mutiple files or directory in package"
+        fi
+
+        finded=true
+        repo_name=$(basename "${file}")
+      done
+
+      if [ -z "${repo_name}" ]; then
+        yxct_fatal "failed to find file or directory in package"
+      fi
+
+      target_path="${target_path%\/}"/${repo_name}
+
+
+
+      # Make repo file's dir if not exist
+      if ! [ -d "${repo_path}" ]; then
+        yxct_err "${repo_path} not exist, try create one"
+        yxct_verbcmd "${MKDIR} -p ${repo_path}" > /dev/null
+        if ! [ -d "${repo_path}" ]; then
+          echo_fatal "failed to mkdir ${repo_path}"
+        fi
+      fi
+
+      # copy file
+      local params=''
+      if [ -f "${repo_path}" ]; then
+        if "${force}"; then
+          params="-f"
+        else
+          yxct_fatal "file ${repo_path} already exist, use '--force' to replace it or '${CMD} unpack --help' to show help information"
+        fi
+      fi
+
+      if [ -d "${target_path}" ]; then
+        params="${params} -R"
+      fi
+
+      if ! yxct_verbcmd "${CP} ${params} ${target_path%\/}/${repo_name} ${repo_path}"; then
+        yxct_fatal "failed to copy file to ${pack_file}"
+      else
+        yxct_msg "unpack success"
+      fi
+
+
+    fi # end of(if [[ "${option}" == 'PACK' ]]; then)
+
+
+  fi # end of (if ${show_help}; then)
+}
+
 
 function cmd_list()
 {
@@ -2401,6 +2739,8 @@ if [[ $(yxct_os_type) == 'osx' ]]; then
   ENV=/usr/bin/env
   MKDIR=/bin/mkdir
   LN=/bin/ln
+  TAR=/usr/bin/tar
+  OPENSSL=/usr/local/bin/openssl
 else
   CP=/usr/bin/cp
   RM=/usr/bin/rm
@@ -2409,6 +2749,8 @@ else
   ENV=/usr/bin/env
   MKDIR=/usr/bin/mkdir
   LN=/usr/bin/ln
+  TAR=/usr/bin/tar
+  OPENSSL=/usr/bin/openssl
 fi
 
 
@@ -2439,6 +2781,10 @@ elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
 elif [[ "${sub_cmd}" == 'list' ]]; then
   cmd_list $@
+elif [[ "${sub_cmd}" == 'pack' ]]; then
+  cmd_pack pack $@
+elif [[ "${sub_cmd}" == 'unpack' ]]; then
+  cmd_pack unpack $@
 elif [[ "${sub_cmd}" == '-' ]]; then
   : # nested call. do nothing ...
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
