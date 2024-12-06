@@ -1354,6 +1354,36 @@ function uninstall_by_bin_path()
 }
 
 
+function search_in_cache()
+{
+  local command=$1
+  shift
+  local cache_path="$*"
+
+  if [ -z "${command}" ]; then
+    yxct_fatal "command is empty"
+  fi
+
+  local result=
+  if [ -d "${cache_path}" ]; then
+    if [ -f "${cache_path%\/}/${command}" ] || [ -d "${cache_path%\/}/${command}" ]; then
+      # cache 下, 命令安装包可以是文件或文件夹
+      result="${cache_path%\/}/${command}"
+    elif [ -f "${cache_path%\/}/${command}.yxct" ]; then
+      # cache 下, 是 package
+      result="${cache_path%\/}/${command}.yxct"
+    fi
+  elif [ -f "${cache_path}" ]; then
+    local file_name=$(basename "${cache_path}")
+    if [[ "${file_name}" == "${command}" ]] || [[ "${file_name}" == "${command}.yxct" ]]; then
+      result="${cache_path}"
+    fi
+  fi
+
+  echo "${result}"
+}
+
+
 
 ###########################################################
 # Usage
@@ -1432,6 +1462,10 @@ cat <<EOF
                             3. point to ${CMD} package with a 'yxct' extension or a folder that contains
                             the package (You can create a ${CMD} package with '${CMD} pack' command, or use
                             '${CMD} pack --help' to see more information).
+  --cache [path]            Command will be install from cache directory. If the --cache parameter does not
+                            provide a path. ${CMD} will try to find it from 'YXCT_CACHE_PATH' environment.
+                            '--cache' has a lower priority than '--path'. If a valid '--path' parameter is
+                            specified, the '--cache' parameter is ignored.
   
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
@@ -1592,6 +1626,11 @@ cat <<EOF
                             the package (You can create a ${CMD} package with '${CMD} pack' command, or use
                             '${CMD} pack --help' to see more information).
   
+  --cache [path]            Command will be install from cache directory. If the --cache parameter does not
+                            provide a path. ${CMD} will try to find it from 'YXCT_CACHE_PATH' environment.
+                            '--cache' has a lower priority than '--path'. If a valid '--path' parameter is
+                            specified, the '--cache' parameter is ignored.
+  
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
                             but the '--pass' parameter is not used. ${CMD} will ask for the password during
@@ -1697,6 +1736,7 @@ EOF
 function cmd_install()
 {
   local script_path=
+  local cache_path=
   local bin_path=
   local pass=
   local -a ignore_reg_list=
@@ -1727,6 +1767,14 @@ function cmd_install()
       --path )
         shift
         script_path=$1
+      ;;
+
+      --cache )
+        cache_path="${YXCT_CACHE_PATH}"
+        if ! [[ "$2" =~ ^-.*$ ]]; then
+          cache_path=$2
+          shift
+        fi
       ;;
 
       --force )
@@ -1828,6 +1876,12 @@ function cmd_install()
       export YXCT_USEYXLIB=false
     fi 
 
+    # 如果未提供'script_path', 但使用了'--cache'参数，尝试从cache中查找
+    if [ -z "${script_path}" ]; then
+      if [ -n "${cache_path}" ]; then
+        script_path=$(search_in_cache "${command}" "${cache_path}")
+      fi
+    fi
     if [ -z "${script_path}" ]; then
       yxct_fatal "Script path is empty. Use --help to show more information."
     fi
