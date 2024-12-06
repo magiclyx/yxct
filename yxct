@@ -1880,10 +1880,12 @@ function cmd_install()
     if [ -z "${script_path}" ]; then
       if [ -n "${cache_path}" ]; then
         script_path=$(search_in_cache "${command}" "${cache_path}")
+        if [ -z "${script_path}" ]; then
+          yxct_fatal "can not find command ${command} from cache"
+        fi
+      else
+        yxct_fatal "Script path is empty. Use --help to show more information."
       fi
-    fi
-    if [ -z "${script_path}" ]; then
-      yxct_fatal "Script path is empty. Use --help to show more information."
     fi
 
 
