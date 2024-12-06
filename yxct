@@ -1429,9 +1429,9 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. Point to an install script or a folder that contains an install script.
                             2. Point to a command file, ${CMD} will try to install the command to system.
-                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
-                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
-                            information).
+                            3. point to ${CMD} package with a 'yxct' extension or a folder that contains
+                            the package (You can create a ${CMD} package with '${CMD} pack' command, or use
+                            '${CMD} pack --help' to see more information).
   
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
@@ -1507,9 +1507,9 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. point to an uninstall script or a folder that contains an uninstall script.
                             2. point to a command file, ${CMD} will try to uninstall a same command on system.
-                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
-                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
-                            information).
+                            3. point to ${CMD} package with a 'yxct' extension or a folder that contains
+                            the package (You can create a ${CMD} package with '${CMD} pack' command, or use
+                            '${CMD} pack --help' to see more information).
   
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
@@ -1588,9 +1588,9 @@ cat <<EOF
   The following options are availiable:
   --path <path>             1. Point to an install script or a folder that contains an install script.
                             2. Point to a command file, ${CMD} will try to install the command to system.
-                            3. point to ${CMD} package with a 'yxct' extension (You can create a ${CMD}
-                            package with '${CMD} pack' command, or use '${CMD} pack --help' to see more
-                            information).
+                            3. point to ${CMD} package with a 'yxct' extension or a folder that contains
+                            the package (You can create a ${CMD} package with '${CMD} pack' command, or use
+                            '${CMD} pack --help' to see more information).
   
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
