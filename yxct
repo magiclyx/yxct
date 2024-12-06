@@ -1839,30 +1839,51 @@ function cmd_install()
 
 
     # extra package if need
-    if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
-      local package_name=$(basename "${script_path}")
-      if [[ "${package_name##*.}" == 'yxct' ]]; then
-
-        local tmp_path=$(mktemp -d)
-        if [ ! -d "${tmp_path}" ]; then
-          yxct_fatal "Failed to create a temp directory"
+    if [ -n "${script_path}" ]; then
+      
+      # 'script_path' 指向的可能是一个package, 也可能指向一个包含package的文件夹
+      local single_file_path=
+      if [ -f "${script_path}" ]; then
+        single_file_path="${script_path}"
+      elif [ -d "${script_path}" ]; then
+        local single_file_name=$(file_name_if_single "${script_path}")
+        if [ -n "${single_file_name}" ]; then
+          single_file_path="${single_file_path%\/}/${single_file_name}"
         fi
-        
-        local pass_params=
-        if [ -n "${pass}" ]; then
-          pass_params="--pass ${pass}"
-        fi
-
-        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
-        if ! cmd_pack unpack --pack-path "${script_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
-          yxct_fatal "failed to unpack pakcage:${package}"
-        fi
-        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
-
-        script_path="${tmp_path%\/}/${package_name%.*}"
-        echo "new_path:${script_path}"
       fi
-    fi
+
+
+      # 如果找到了一个文件
+      if [ -n "${single_file_path}" ]; then
+
+          # 这里通过扩展名，判断文件是否是一个 package
+        local package_name=$(basename "${single_file_path}")
+        if [[ "${package_name##*.}" == 'yxct' ]]; then
+
+          local tmp_path=$(mktemp -d)
+          if [ ! -d "${tmp_path}" ]; then
+            yxct_fatal "Failed to create a temp directory"
+          fi
+          
+          # 释放package里的内容
+          local pass_params=
+          if [ -n "${pass}" ]; then
+            pass_params="--pass ${pass}"
+          fi
+
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+          if ! cmd_pack unpack --pack-path "${single_file_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
+            yxct_fatal "failed to unpack pakcage:${package}"
+          fi
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+          # 新的script_path路径
+          script_path="${tmp_path%\/}/${package_name%.*}"
+        fi
+
+      fi # end of (if [ -n "${single_file_path}" ]; then)
+
+    fi # end of (if [ -n "${script_path}" ]; then)
 
 
 
@@ -2116,29 +2137,52 @@ function cmd_uninstall()
 
 
     # extra package if need
-    if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
-      local package_name=$(basename "${script_path}")
-      if [[ "${package_name##*.}" == 'yxct' ]]; then
+    if [ -n "${script_path}" ]; then
 
-        local tmp_path=$(mktemp -d)
-        if [ ! -d "${tmp_path}" ]; then
-          yxct_fatal "Failed to create a temp directory"
+      # 'script_path' 指向的可能是一个package, 也可能指向一个包含package的文件夹
+      local single_file_path=
+      if [ -f "${script_path}" ]; then
+        single_file_path="${script_path}"
+      elif [ -d "${script_path}" ]; then
+        local single_file_name=$(file_name_if_single "${script_path}")
+        if [ -n "${single_file_name}" ]; then
+          single_file_path="${single_file_path%\/}/${single_file_name}"
         fi
-        
-        local pass_params=
-        if [ -n "${pass}" ]; then
-          pass_params="--pass ${pass}"
-        fi
-
-        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
-        if ! cmd_pack unpack --pack-path "${script_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
-          yxct_fatal "failed to unpack pakcage:${package}"
-        fi
-        YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
-
-        script_path="${tmp_path%\/}/${package_name%.*}"
       fi
-    fi
+
+
+      # 如果找到了一个文件
+      if [ -n "${single_file_path}" ]; then
+
+        # 这里通过扩展名，判断文件是否是一个 package
+        local package_name=$(basename "${single_file_path}")
+        if [[ "${package_name##*.}" == 'yxct' ]]; then
+
+          local tmp_path=$(mktemp -d)
+          if [ ! -d "${tmp_path}" ]; then
+            yxct_fatal "Failed to create a temp directory"
+          fi
+          
+
+          # 释放package里的内容
+          local pass_params=
+          if [ -n "${pass}" ]; then
+            pass_params="--pass ${pass}"
+          fi
+
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+          if ! cmd_pack unpack --pack-path "${single_file_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
+            yxct_fatal "failed to unpack pakcage:${package}"
+          fi
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+          # 新的script_path路径
+          script_path="${tmp_path%\/}/${package_name%.*}"
+        fi
+
+      fi # end of (if [ -n "${single_file_path}" ]; then)
+
+    fi # end of (if [ -n "${script_path}" ]; then)
 
 
     local params=''
