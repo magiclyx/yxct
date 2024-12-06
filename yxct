@@ -2372,10 +2372,6 @@ function cmd_reinstall()
 
   while [ $# -gt 0 ]; do
 
-    if [[ $1 =~ ^--.*$ ]]; then
-      is_in_ignore=false
-    fi
-
     case $1 in
 
       --test )
@@ -2490,10 +2486,6 @@ function cmd_pack()
 
   local cursor=
   while [ $# -gt 0 ]; do
-
-    if [[ $1 =~ ^--.*$ ]]; then
-      is_in_ignore=false
-    fi
 
     case $1 in
 
@@ -2780,10 +2772,6 @@ function cmd_list()
   local show_help=false
 
   while [ $# -gt 0 ]; do
-
-    if [[ $1 =~ ^--.*$ ]]; then
-      is_in_ignore=false
-    fi
 
     case $1 in
 
