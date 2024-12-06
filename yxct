@@ -42,7 +42,6 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
 
 
-
 #Display comand only, not run
 if [ -z "${TEST_ONLY}" ]; then
   TEST_ONLY=false
@@ -398,6 +397,16 @@ function yxct_get_library_path()
   fi
 
   echo "${lib_path}"
+}
+
+function yxct_get_default_cache_path()
+{
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+
+  echo "${library_path%\/}/${CMD}/cache"
 }
 
 function yxct_get_cellar_item()
@@ -1732,15 +1741,16 @@ EOF
 # Command
 ###########################################################
 
-
 function cmd_install()
 {
   local script_path=
-  local cache_path=
   local bin_path=
   local pass=
   local -a ignore_reg_list=
   local additional=
+
+  local use_cache=false
+  local cache_path=
 
   local force=false
   local test=false
@@ -1770,7 +1780,7 @@ function cmd_install()
       ;;
 
       --cache )
-        cache_path="${YXCT_CACHE_PATH}"
+        use_cache=true;
         if ! [[ "$2" =~ ^-.*$ ]]; then
           cache_path=$2
           shift
@@ -1876,16 +1886,41 @@ function cmd_install()
       export YXCT_USEYXLIB=false
     fi 
 
-    # 如果未提供'script_path', 但使用了'--cache'参数，尝试从cache中查找
+    # 如果未提供'script_path'
     if [ -z "${script_path}" ]; then
-      if [ -n "${cache_path}" ]; then
+      
+      # 如果使用了 --cache 参数
+      if ${use_cache}; then
+        
+        # 如果 '--cache' 参数未提供 path
+        if [ -z "${cache_path}" ]; then
+          
+          if [ -n "${YXCT_CACHE_PATH}" ]; then
+            # 如果提供了环境变量， 从环境变量中读取 cache 路径
+            # 环境变量中的 cache路径必须存在
+            cache_path="${YXCT_CACHE_PATH}"
+            if ! [ -e "${cache_path}" ]; then
+              yxct_fatal "${cache_path} not exist"
+            fi
+          else
+            # 如果没提供环境变量，使用默认cache路径.
+            # 默认 cache 路径可能是空的或者未创建, 则说明未找到命令
+            cache_path="$(yxct_get_default_cache_path)"
+            if ! [ -d "${cache_path}" ]; then
+              yxct_fatal "can not find command ${command} from cache"
+            fi
+          fi
+        fi
+
+        # 在cache中搜索命令安装包，并更新script_path
         script_path=$(search_in_cache "${command}" "${cache_path}")
         if [ -z "${script_path}" ]; then
           yxct_fatal "can not find command ${command} from cache"
         fi
+
       else
         yxct_fatal "Script path is empty. Use --help to show more information."
-      fi
+      fi # end of (if ${use_cache}; then)
     fi
 
 
