@@ -699,11 +699,11 @@ function yxct_get_cmd_item()
 
   local result=0
   if [[ "${type}" == '--cache' ]]; then
-    result="${library_path%\/}/${CMD}/${cache}"
+    result="${library_path%\/}/${CMD}/cache"
   elif [[ "${type}" == '--config' ]]; then
-    result="${library_path%\/}/${CMD}/${conf}"
+    result="${library_path%\/}/${CMD}/conf"
   elif [[ "${type}" == '--index' ]]; then
-    result="${library_path%\/}/${CMD}/${index}"
+    result="${library_path%\/}/${CMD}/index"
   fi
   
   echo "${result}"
