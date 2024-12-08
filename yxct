@@ -40,6 +40,10 @@ USR_LOCAL_SBIN_PATH='/usr/local/sbin'
 DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
 
+# index about
+YXCT_INDEX_DEFAULT_GIT_ADDR='git@github.com:magiclyx/yxctindex.git'
+YXCT_INDEX_DEFAULT_GIT_BRANCH='master'
+YXCT_INDEX_DEFAULT_SCHEDULE=7day
 
 
 #Display comand only, not run
@@ -1696,6 +1700,185 @@ function search_in_cache()
 }
 
 
+function update_index_if_need()
+{
+  # local need_update=false
+  local index_path=$(yxct_get_cmd_item --index)
+  if [ -z "${index_path}" ]; then
+    yxct_fatal "failed to get index path"
+  fi
+
+  # last update timestamp
+  local last_timestamp_file="${index_path}/last"
+
+
+  if ! [ -d "${index_path}" ]; then
+    # need_update=true
+    yxct_verbcmd "${MKDIR} -p ${index_path}"
+    if ! [ -d "${index_path}" ]; then
+      yxct_fatal "failed to create index directory"
+    fi
+  fi
+
+  #check whether should update index repo
+  local should_update=true
+
+  # check update flag
+  if ${should_update}; then
+    local update=$(cmd_config read --key index.update)
+    if [ -n "${update}" ]; then
+      if yxct_strcontains "${update}" "no 0 false" --ignorecase; then
+        should_update=false
+      fi
+    fi
+  fi
+
+
+  # check schedule
+  if ${should_update}; then
+
+    # get schedule
+    local schedule=$(cmd_config read --key index.schedule)
+    if [ -z "${schedule}" ]; then
+      schedule="${YXCT_INDEX_DEFAULT_SCHEDULE}"
+    fi
+    local schedule_in_seconds=$(yxct_datastr_to_second "${schedule}")
+
+    # get current timestamp
+    local current=$(date '+%s')
+    if [ -z "${current}" ]; then
+      yxct_fatal "failed to get current timestamp"
+    fi
+
+    # get last update timestamp
+    if [ -f "${last_timestamp_file}" ]; then
+
+      local last=$(cat "${last_timestamp_file}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+      if [ -z "${last}" ]; then
+        : # 上次更新时间戳不存在，不需要验证
+      elif [[ "${last}" =~ ^[0-9]{10}$ ]]; then
+        # check schedule
+        if [ $((current-last)) -lt "${schedule_in_seconds}" ]; then
+          should_update=false
+        fi
+      else
+        # 上次更新时间戳，格式不对。报个error, 然后忽略时间戳
+        yxct_err "invalid last update timestamp in index repo"
+      fi
+
+    fi
+  fi
+
+
+  if ${should_update}; then
+    
+    # git addr
+    local git_addr=$(cmd_config read --key index.repo)
+    if [ -z "${git_addr}" ]; then
+      git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
+    fi
+
+    # branch
+    local git_branch=$(cmd_config read --key index.branch)
+    if [ -z "${git_branch}" ]; then
+      git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
+    fi
+
+    # repo folder name
+    local index_dir_name=
+    if [[ $(yxct_os_type) == 'osx' ]]; then
+      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5)
+    else
+      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5sum | awk '{print $1}')
+    fi
+
+    # repo dir
+    local repo="${index_path%\/}/${index_dir_name}"
+
+    # 如果仓库存在，尝试更新仓库
+    if [ -d "${repo}/.git" ]  &&  git -C "${repo}" rev-parse --git-dir &> /dev/null; then
+
+      yxct_verbcmd "git -C ${repo} fetch"
+      local git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
+      local git_fetch_head=$(git -C "${repo}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+      yxct_verbose "head:${git_head}"
+      yxct_verbose "new:${git_fetch_head}"
+
+      # check whether need to update
+      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+
+        yxct_msg "begin update..."
+        
+        # check the repo
+        local git_status=
+        if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
+          yxct_fatal "failed to get git status"
+        fi
+        
+        # clean the repo if need
+        if [ -n "${git_status}" ]; then
+          yxct_msg "the repo is dirty, try recover..."
+          
+          # clean the repo
+          yxct_verbcmd "git -C ${repo} reset --hard HEAD --"
+          yxct_verbcmd "git -C ${repo} clean -fd"
+          
+          # check clean result
+          if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
+            yxct_fatal "failed to get git status after clean yxct repo"
+          fi
+          if [ -n "${git_status}" ]; then
+            yxct_fatal "failed to clean ${CMD} repo"
+          fi
+        fi
+
+        #pull the repo
+        if ! yxct_verbcmd "git -C ${repo} pull"; then
+          yxct_fatal "failed to pull repo"
+        fi
+        
+        # re-check upgrade result.
+        git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
+        if [[ "${git_head}" == "${git_fetch_head}" ]]; then
+          yxct_msg 'upgrade success.'
+        else
+          yxct_fatal 'upgrade failed.'
+        fi
+
+      fi #end of if [[ "${git_head}" != "${git_fetch_head}" ]]
+
+    else
+
+      # the index repo dir is already exist, but not a repo. remove it.
+      if [ -d "${repo}" ]; then
+        yxct_err "the index repo exist, but not a repo. ${CMD} will try to remove it:${repo}"
+        yxct_verbcmd "${RM} -rf ${repo}"
+        if [ -d "${repo}" ]; then
+          yxct_fatal "failed to remove an invalid index dir:${repo}"
+        fi
+      fi
+      
+      # create index repo dir if need.
+      if ! [ -d "${repo}" ]; then
+        yxct_verbcmd "${MKDIR} -p ${repo}"
+        if ! [ -d "${repo}" ]; then
+          yxct_fatal "failed to create index repo directory"
+        fi
+      fi
+
+      # if the repo not exist, clone a new repo.
+      if ! git clone "${git_addr}" "${repo}"; then
+        yxct_fatal "failed to get index list."
+      fi
+
+    fi # end of (if [ -d "${repo}/.git" ] ....)
+
+    echo "${current}" > "${last_timestamp_file}"
+
+  fi # end of (if ${should_update}; then)
+
+}
+
 
 ###########################################################
 # Usage
@@ -2738,6 +2921,7 @@ function cmd_update()
         yxct_fatal "failed to get git status"
       fi
       
+      # clean the repo if need
       if [ -n "${git_status}" ]; then
         yxct_msg "the repo is dirty, try recover..."
         
