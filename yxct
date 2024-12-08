@@ -383,6 +383,60 @@ function yxct_shell_type()
   echo "${shell_type}"
 }
 
+function yxct_datastr_to_second()
+{
+	local -A REG_MAP
+	REG_MAP=(
+		[YEAR]='(y|year|years)'
+		[MONTH]='(mon|month|months)'
+		[DAY]='(d|day|days)'
+		[HOUR]='(h|hour|hours)'
+		[MINUTE]='(m|min|minute|minutes)'
+		[SECOND]='(s|sec|second|seconds)'
+	)
+	
+	local -A SECOND_MAP
+	SECOND_MAP=(
+		[YEAR]='31104000'
+		[MONTH]='2592000'
+		[DAY]='86400'
+		[HOUR]='3600'
+		[MINUTE]='60'
+		[SECOND]='1'
+	)
+	
+	
+	local result=0
+	local date_str=$(echo "${1}" | tr '[:upper:]' '[:lower:]' | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+	for tag in YEAR MONTH DAY HOUR MINUTE SECOND; do	
+		local section=$(echo "${date_str}" | grep -oE "^\s*\d+${REG_MAP[${tag}]}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+		
+		if [ -n "${section}" ]; then
+			
+			local num=$(echo "${section}" | grep -oE "^\d+" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+			if [ -z "${num}" ]; then
+				yxct_fatal "invalid time format:$1"
+			fi
+			
+
+			((result=result+SECOND_MAP["${tag}"]*num))
+			
+			
+			local fix_section=$(echo "${section}" | _yxct_sed_escape)
+			date_str=$(echo "${date_str}" | sed -e "s/^${fix_section}//g")
+		fi
+		
+	done
+	
+	if ! [ -z "${date_str}" ]; then
+		yxct_fatal "invalid time format:$1"
+  else
+    echo "${result}"
+	fi
+	
+}
+
+
 ###########################################################
 # config
 ###########################################################
