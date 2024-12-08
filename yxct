@@ -384,6 +384,209 @@ function yxct_shell_type()
 }
 
 ###########################################################
+# config
+###########################################################
+
+function _yxct_sed_escape() {
+  sed -e 's/[][\/^$?*.]/\\&/g'
+}
+
+function _yxct_grep_escape() {
+  sed -e 's/[][\/^$?+*.]/\\&/g' 
+}
+
+function yxct_config_read()
+{
+
+  local file=
+  local key=
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+    case $1 in
+    --file )
+      cursor=$1
+      shift
+      file=$1
+    ;;
+
+    --key )
+      cursor=$1
+      shift
+      key=$1
+    ;;
+
+    *)
+      if [[ "${cursor}" == '--file' ]]; then
+        file="${file} $1"
+      elif [[ "${cursor}" == '--key' ]]; then
+        key="${key} $1" 
+      else
+        yxct_fatal "Invalid optional ${1}"
+      fi
+    ;;
+    esac
+    shift
+  done
+
+  if [ -z "${key}" ]; then
+    yxct_fatal 'key is empty'
+  fi
+
+  if [ -z "${file}" ]; then
+    yxct_fatal 'file is empty'
+  fi
+
+
+  local sed_fixkey=$(echo "${key}" | _yxct_sed_escape)
+  local grep_fixkey=$(echo "${key}" | _yxct_grep_escape)
+  test -f "${file}" && grep -E "^\s*${grep_fixkey}\s*=\s*" "${file}" | sed -e  "s/[[:space:]]*${sed_fixkey}[[:space:]]*=[[:space:]]*//g" | grep -o "[^ ]\+\( \+[^ ]\+\)*"
+}
+
+
+function yxct_config_write()
+{
+
+  local file=
+  local key=
+  local val=
+  local space=' '
+  local nospace=false
+  local duplicate=false
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+    case $1 in
+    --file )
+      cursor=$1
+      shift
+      file=$1
+    ;;
+
+    --key )
+      cursor=$1
+      shift
+      key=$1
+    ;;
+
+    --val )  
+      cursor=$1
+      shift
+      val=$1
+    ;;
+
+    --no-space )
+      # A = B 还是 A=B
+      # 如果部分配置文件，不允许等号两旁优空格
+      # 使用 --no-space
+      cursor=
+      nospace=true
+    ;;
+
+    --duplicate-key )
+      # Key 是否可以重复。
+      # 如果当存在 A = 2 时， 写入 A = 3
+      # 默认行为是将 A = 2 替换为 A = 3
+      # 当使用 --dupliate-key 参数时 
+      # 会在 A = 2 下面 添加 A = 3.
+      cursor=
+      duplicate=true
+    ;;
+
+
+    *)
+    if [[ "${cursor}" == '--file' ]]; then
+        file="${file} $1"
+      elif [[ "${cursor}" == '--key' ]]; then
+        key="${key} $1" 
+    elif [[ "${cursor}" == '--val' ]]; then
+        val="${val} $1" 
+      else
+        yxct_fatal "Invalid optional ${1}"
+      fi
+    ;;
+    esac
+    shift
+  done
+
+
+  if [ -z "${key}" ]; then
+    yxct_fatal 'key is empty'
+  fi
+
+  if [ -z "${val}" ]; then
+    yxct_fatal 'val is empty'
+  fi
+
+  if [ -z "${file}" ]; then
+    yxct_fatal 'file is empty'
+  fi
+
+  # 部分配置文件，不允许等号两旁有空格
+  if ${nospace}; then
+    space=''
+  fi
+
+
+  local sed_fixkey=$(echo "${key}" | _yxct_sed_escape)
+  local grep_fixkey=$(echo "${key}" | _yxct_grep_escape)
+
+  local sed_fixval=$(echo "${val}" | _yxct_sed_escape)
+  local grep_fixval=$(echo "${val}" | _yxct_grep_escape)
+
+  if test -f "${file}" &&  grep -Eq "^\s*${grep_fixkey}\s*=\s*${grep_fixval}\s*$" "${file}"; then # Testfile exist and text 'key = val' exist, do nothing ...
+    :
+  elif test -f "${file}" && grep -Eq "^\s*${grep_fixkey}\s*=.*$" "${file}"; then #Test file exist and text 'key = xxx' exist
+    if ${duplicate}; then
+      if [[ $(yxct_os_type) == 'osx' ]]; then
+        # 因为sed在OSX上的问题，这里不得不换行!!!
+        sed -i "" "/^[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a\\
+        ${sed_fixkey} = ${sed_fixval}\\
+        " "${file}"
+      else
+        sed -i "/^[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a ${sed_fixkey}${space}=${space}${sed_fixval}" "${file}"
+      fi
+    else
+      if [[ $(yxct_os_type) == 'osx' ]]; then
+        sed -i "" "s/^[[:space:]]*${sed_fixkey}[[:space:]]*=.*/${sed_fixkey}${space}=${space}${sed_fixval}/g" "${file}"
+      else
+        sed -i "s/^[[:space:]]*${sed_fixkey}[[:space:]]*=.*/${sed_fixkey}${space}=${space}${sed_fixval}/g" "${file}"
+      fi
+    fi
+  elif test -f "${file}" && grep -Eq "^\s*#\s*${grep_fixkey}\s*=.*$" "${file}"; then #Test file exist and text '# key = xxx' exist
+    if   grep -Eq "^\s*#\s*${grep_fixkey}\s*=\s*${grep_fixval}\s*$" "${file}"; then #Test exist '# key = val', remove '#' and format line.
+      if [[ $(yxct_os_type) == 'osx' ]]; then
+        sed -i "" "s/^[[:space:]]*#*[[:space:]]*${sed_fixkey}[[:space:]]*=.*/${sed_fixkey}${space}=${space}${sed_fixval}/g" "${file}"
+      else
+        sed -i "s/^[[:space:]]*#*[[:space:]]*${sed_fixkey}[[:space:]]*=.*/${sed_fixkey}${space}=${space}${sed_fixval}/g" "${file}"
+      fi
+    else # Text '# key=???' exist, append 'key = val' below.
+        ##############################################################################################
+      # 这里有个Bug, 当sed 使用 'a' 追加模式时， 如果同时使用了 "复杂的正则表达式" 和 "限定匹配次数"。
+      # 正则和限定次数逻辑都会失效，并匹配文件每一行。
+      # 好在这种情况比较少见，暂时不做处理。(没想到怎么处理...)
+        ##############################################################################################
+      if [[ $(yxct_os_type) == 'osx' ]]; then
+          # 因为sed在OSX上的问题，这里不得不换行!!!
+        # sed -i "" "0,/^[[:space:]]*#\+[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a\\
+        # ${sed_fixkey} = ${sed_fixval}\\
+        # " "${file}"
+        sed -i "" "/^[[:space:]]*#\+[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a\\
+        ${sed_fixkey} = ${sed_fixval}\\
+        " "${file}"
+      else
+        # sed -i "0,/^[[:space:]]*#\+[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a ${sed_fixkey}${space}=${space}${sed_fixval}" "${file}"
+        sed -i "/^[[:space:]]*#\+[[:space:]]*${sed_fixkey}[[:space:]]*=.*/ a ${sed_fixkey}${space}=${space}${sed_fixval}" "${file}"
+      fi
+    fi
+  else
+    echo -e "\n\n${key}${space}=${space}${val}\n" >> "${file}"
+  fi  
+}
+
+
+
+###########################################################
 # Utility
 ###########################################################
 
@@ -408,6 +611,52 @@ function yxct_get_default_cache_path()
 
   echo "${library_path%\/}/${CMD}/cache"
 }
+
+function yxct_get_cmd_item()
+{
+  local type=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      
+      --cache )
+       type=$1
+      ;;
+
+      --config )
+       type=$1
+      ;;
+
+      --index )
+       type=$1
+      ;;
+      
+      *)
+        echo "Invalid optional ${1}"
+      ;;
+    esac
+    shift
+  done
+
+  # get cellar_path
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+
+  local result=0
+  if [[ "${type}" == '--cache' ]]; then
+    result="${library_path%\/}/${CMD}/${cache}"
+  elif [[ "${type}" == '--config' ]]; then
+    result="${library_path%\/}/${CMD}/${conf}"
+  elif [[ "${type}" == '--index' ]]; then
+    result="${library_path%\/}/${CMD}/${index}"
+  fi
+  
+  echo "${result}"
+  [ -n "${result}" ] && return 0 || return 1
+}
+
+
 
 function yxct_get_cellar_item()
 {
@@ -1690,6 +1939,32 @@ cat <<EOF
 EOF
 }
 
+function yxct_usage_config()
+{
+cat <<EOF
+  usage: ${CMD} config get <--key domain.key> [--no-depend|--info-level]
+  display a config item with specific key
+
+  usage: ${CMD} config set <--key domain.key> <--val value> [--no-depend|--info-level]
+  set a config item with specific key
+
+
+  The followint option are availiable:
+  --key           key of the key-value config item.
+  --val           value of the key-value config item.
+
+  --no-depend     ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level    Command output level. 
+                  The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                  or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
 function yxct_usage_pack()
 {
 cat <<EOF
@@ -2544,6 +2819,140 @@ function cmd_reinstall()
 
 }
 
+#usage
+# yxct_config set --key domain.name --val val
+# usage
+# yxct_config get --key domain.name
+function cmd_config()
+{
+  local domain=
+  local key=
+  local val=
+  local option=
+
+  local info_level=
+  local no_depend=false
+  local show_help=false
+
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    if yxct_strcontains "$1" "get" --ignorecase; then
+      option='GET'
+    elif yxct_strcontains "$1" "set" --ignorecase; then
+      option='SET'
+    else
+      option=$1
+    fi
+
+    shift
+  else
+    # get is default option
+    option='GET'
+  fi
+
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --key )
+        cursor=$1
+      ;;
+
+      --val )
+        cursor=$1
+      ;; 
+
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --no-depend )
+        no_depend=true
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        if [[ $1 =~ ^-.*$ ]]; then
+          cursor=
+        fi
+        if [ -n "${cursor}" ]; then
+          if [[ "${cursor}" == '--key' ]]; then
+            key=$(echo "${key} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--val' ]]; then
+            val=$(echo "${val} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          else
+            yxct_fatal "invalid name of ${cursor} $1"
+          fi
+        else
+          yx_fatal "invalid optional ${1}"
+        fi
+      ;;
+
+    esac
+    shift
+  done
+
+
+  if ${show_help}; then
+    yxct_usage_config
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+
+    if [ -z "${key}" ]; then
+      yxct_fatal "key is empty."
+    fi
+
+
+    # get domain section from key string.
+    domain="${key%%\.*}"
+    if [[ "${domain}" == "${key}" ]]; then
+      yxct_fatal "invalid key format:${key}, no domain found"
+    fi
+
+    # get real key which remove 'domain' section from --key params
+    key="${key#[^\.]*\.}"
+
+
+
+    # get config directory
+    local config_dir=$(yxct_get_cmd_item --config)
+    if [ -z "${config_dir}" ]; then
+      yxct_fatal "failed to get config dir"
+    fi
+
+    # read or write the config file
+    local file="${config_dir}/${domain}"
+    if [[ "${option}" == 'GET' ]]; then
+      if [ -f "${file}" ]; then
+        yxct_config_read --file "${file}" --key "${key}"
+      fi
+    elif [[ "${option}" == 'SET' ]]; then
+      if ! [ -d "${config_dir}" ]; then
+        yxct_verbcmd "${MKDIR} -p ${config_dir}"
+        if ! [ -d "${config_dir}" ]; then
+          yxct_verbcmd "failed to make dir:${config_dir}"
+        fi
+      fi
+
+      yxct_config_write --file "${file}" --key "${key}" --val "${val}"
+    fi
+
+
+  fi # end of (if ${show_help}; then)
+
+}
 
 function cmd_pack()
 {
@@ -3004,6 +3413,10 @@ elif [[ "${sub_cmd}" == 'pack' ]]; then
   cmd_pack pack $@
 elif [[ "${sub_cmd}" == 'unpack' ]]; then
   cmd_pack unpack $@
+elif [[ "${sub_cmd}" == 'set' ]]; then
+  cmd_config set $@
+elif [[ "${sub_cmd}" == 'get' ]]; then
+  cmd_config get $@
 elif [[ "${sub_cmd}" == '-' ]]; then
   : # nested call. do nothing ...
 elif [[ "${sub_cmd}" == '--help' ]] || [[ "${sub_cmd}" == '-h' ]]; then
