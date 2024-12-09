@@ -3219,59 +3219,14 @@ function cmd_update()
     fi
 
 
-    # yxct 预计的环境，很大可能是没有git的...
-    if ! which git > /dev/null; then
-      yxct_fatal "can not find git command."
-    fi
-
-    yxct_msg "check update info..."
-    yxct_verbcmd "git -C ${repo} fetch"
-    local git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
-    local git_fetch_head=$(git -C "${repo}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
-    yxct_verbose "head:${git_head}"
-    yxct_verbose "new:${git_fetch_head}"
-
-    if [[ "${git_head}" != "${git_fetch_head}" ]]; then
-      yxct_msg "begin update..."
-      
-      # check the repo
-      local git_status=
-      if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
-        yxct_fatal "failed to get git status"
-      fi
-      
-      # clean the repo if need
-      if [ -n "${git_status}" ]; then
-        yxct_msg "the repo is dirty, try recover..."
-        
-        # clean the repo
-        yxct_verbcmd "git -C ${repo} reset --hard HEAD --"
-        yxct_verbcmd "git -C ${repo} clean -fd"
-        
-        # check clean result
-        if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
-          yxct_fatal "failed to get git status after clean yxct repo"
-        fi
-        if [ -n "${git_status}" ]; then
-          yxct_fatal "failed to clean ${CMD} repo"
-        fi
-      fi
-      
-      #pull the repo
-      if ! yxct_verbcmd "git -C ${repo} pull"; then
-        yxct_fatal "failed to pull repo"
-      fi
-      
-      # re-check upgrade result.
-      git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
-      if [[ "${git_head}" == "${git_fetch_head}" ]]; then
-        yxct_msg 'upgrade success.'
-      else
-        yxct_fatal 'upgrade failed.'
-      fi
-      
-    else
+    yxct_git_repo update --repo "${repo}"
+    local result=$?
+    if [[ "${result}" == '0' ]]; then
+      yxct_msg "update success"
+    elif [[ "${result}" == '1' ]]; then
       yxct_msg "${CMD} is already the latest version"
+    else
+      yxct_fatal "update failed"
     fi
 
   fi
