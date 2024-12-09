@@ -715,6 +715,243 @@ function yxct_get_cmd_item()
 }
 
 
+#usage
+# yxct_git_repo update --repo <repo-path> --addr <git-addr>
+#usage
+# yxct_git_repo checkout <git-hash> --repo <repo-path> --addr <git-addr>
+#
+# return value
+# update:
+# 0:success
+# -1:already the last version
+# checkout
+# 0:success
+# 
+function yxct_git_repo()
+{
+  local repo_path=
+  local git_address=
+  local git_hash=
+
+  local operation=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    if yxct_strcontains "$1" 'checkout' --ignorecase; then
+      operation='CHECKOUT'
+      if [ -n "$2" ] && [[ "$2" =~ ^[0-9a-zA-z]{7,40}$ ]]; then
+        git_hash=$2
+        shift
+      else
+        yxct_fatal "use 'checkout' but not provide a git-hash value"
+      fi
+    elif yxct_strcontains "$1" 'update' --ignorecase; then
+      operation='UPDATE'
+    else
+      operation=$1
+    fi
+    shift
+  fi
+
+
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --repo )
+        cursor=$1
+      ;;
+
+      --addr )
+        cursor=$1
+      ;;
+
+      *)
+        if [[ $1 =~ ^-.*$ ]]; then
+          cursor=
+        fi
+        if [ -n "${cursor}" ]; then
+          if [[ "${cursor}" == '--repo' ]]; then
+            repo_path=$(echo "${repo_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--addr' ]]; then
+            git_address=$(echo "${git_address} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          else
+            yxct_fatal "invalid name of ${cursor} $1"
+          fi
+        else
+          yx_fatal "invalid optional ${1}"
+        fi
+    esac
+    shift
+  done
+
+  if [ -z "${repo_path}" ]; then
+    yxct_fatal "repo path is empty"
+  fi
+
+  # yxct 预计的环境，很大可能是没有git的...
+  if ! which git > /dev/null; then
+    yxct_fatal "can not find git command."
+  fi
+
+
+
+  function __yxct_valid_repo()
+  {
+    local git_addr=$1
+    local valid=true
+
+    # check the directory is a git repo.
+    if ${valid}; then
+      if ! [ -d "${repo_path}" ]; then
+        valid=false
+      elif ! [ -d "${repo_path}/.git" ]; then
+        valid=false
+      elif ! git -C "${repo_path}" rev-parse --git-dir &> /dev/null; then
+        valid=false
+      else
+        local git_flag=
+        if git_flag=$(git -C "${repo_path}" rev-parse --git-dir 2> /dev/null); then
+          if [[ "${git_flag}" != '.git' ]]; then
+            git_flag=false
+          fi
+        else
+          valid=false
+        fi
+        
+      fi
+    fi
+
+
+    # check the git address is same with '--address params'
+    if ${valid}; then
+      if [ -n "${git_addr}" ]; then
+        local repo_git_addr=$(git -C "${repo_path}" remote -v | grep -i '\\(fetch\)' | awk '{print $2}')
+        if [[ "${git_addr}" != "${repo_git_addr}" ]]; then
+          valid=false
+        fi
+      fi
+    fi
+
+    ${valid} && return 0 || return 1
+  }
+
+  function __yxct_clean_repo()
+  {
+    # get repo status
+    local git_status=
+    if ! git_status=$(git -C "${repo_path}" status --porcelain=v1); then
+      yxct_fatal "failed to get git status"
+    fi
+
+    # clean the repo if need
+    if [ -n "${git_status}" ]; then
+      yxct_msg "the repo is dirty, try recover..."
+      
+      # clean the repo
+      yxct_verbcmd "git -C ${repo_path} reset --hard HEAD --"
+      yxct_verbcmd "git -C ${repo_path} clean -fd"
+      
+      # check clean result
+      if ! git_status=$(git -C "${repo_path}" status --porcelain=v1); then
+        yxct_fatal "failed to get git status after clean yxct repo"
+      fi
+      if [ -n "${git_status}" ]; then
+        yxct_fatal "failed to clean ${CMD} repo"
+      fi
+    fi
+  }
+
+  function __yxct_clone_new_repo()
+  {
+    # remove old repo directory if exist
+    if [ -d "${repo_path}" ]; then
+      yxct_verbcmd "${RM} -rf ${repo_path}"
+      if [ -d "${repo_path}" ]; then
+        yxct_verbcmd "failed to remove old repo directory"
+      fi
+    fi
+
+    # create the repo directory
+    if ! yxct_verbcmd "${MKDIR} -p ${repo_path}"; then
+      yxct_fatal "failed to create repo directory"
+    fi
+
+    # clone a new repo
+    if ! git clone "${git_addr}" "${repo_path}"; then
+      yxct_fatal "failed to clone a new repo."
+    fi
+  }
+
+
+  local result=0
+  if [[ "${operation}" == 'CHECKOUT' ]]; then
+
+    yxct_msg "check local git repo directory..."
+    if __yxct_valid_repo "${git_address}"; then
+      # clean the repo
+      yxct_msg "clean local repo directory..."
+      __yxct_clean_repo
+    else
+      # clone a new repo
+        yxct_msg "clone a new repo..."
+      __yxct_clone_new_repo
+    fi
+
+    # checkout the repo on specific git-hash.
+    yxct_msg "checkout repo HEAD to ${git_hash}..."
+    if ! yxct_verbcmd "git -C ${repo_path} checkout ${git_hash}"; then 
+      yxct_fatal "failed to checkout the repo on:${git_hash}"
+    fi
+
+    result=0
+
+  elif [[ "${operation}" == 'UPDATE' ]]; then
+    
+    yxct_msg "check local git repo directory..."
+    if __yxct_valid_repo "${git_address}"; then
+
+      # git fetch
+      yxct_msg "check update info..."
+      yxct_verbcmd "git -C ${repo_path} fetch"
+      echo "here"
+
+      # check whether need update
+      local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
+      local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+
+        # clean the repo
+        __yxct_clean_repo
+
+        yxct_msg "begin update..."
+        #pull the repo
+        if ! yxct_verbcmd "git -C ${repo_path} pull"; then
+          yxct_fatal "failed to pull repo"
+        fi
+
+        result=0
+      else
+        # is already the latest version"
+        result=-1
+      fi
+
+    else
+      # clone a new repo
+      yxct_msg "clone a new repo..."
+      if ! __yxct_clone_new_repo; then
+        yxct_fatal "failed to clone new repo"
+      fi
+      result=0
+    fi
+
+  else
+    yxct_fatal "unknown opton:${operation}"
+    result=1
+  fi
+
+
+  return "${result}"
+}
+
 
 function yxct_get_cellar_item()
 {
