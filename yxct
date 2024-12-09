@@ -723,7 +723,7 @@ function yxct_get_cmd_item()
 # return value
 # update:
 # 0:success
-# -1:already the last version
+# 11:already the last version
 # checkout
 # 0:success
 # 
@@ -931,7 +931,7 @@ function yxct_git_repo()
         result=0
       else
         # is already the latest version"
-        result=-1
+        result=11
       fi
 
     else
@@ -3248,7 +3248,7 @@ function cmd_update()
     local result=$?
     if [[ "${result}" == '0' ]]; then
       yxct_msg "update success"
-    elif [[ "${result}" == '1' ]]; then
+    elif [[ "${result}" == '11' ]]; then
       yxct_msg "${CMD} is already the latest version"
     else
       yxct_fatal "update failed"
