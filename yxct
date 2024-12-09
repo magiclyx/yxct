@@ -1907,33 +1907,62 @@ function uninstall_by_bin_path()
 }
 
 
-function search_in_cache()
-{
-  local command=$1
-  shift
-  local cache_path="$*"
 
-  if [ -z "${command}" ]; then
+function search_in_index()
+{
+  local command=
+  local key=
+
+  if ! [[ $1 =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  else
     yxct_fatal "command is empty"
   fi
 
-  local result=
-  if [ -d "${cache_path}" ]; then
-    if [ -f "${cache_path%\/}/${command}" ] || [ -d "${cache_path%\/}/${command}" ]; then
-      # cache 下, 命令安装包可以是文件或文件夹
-      result="${cache_path%\/}/${command}"
-    elif [ -f "${cache_path%\/}/${command}.yxct" ]; then
-      # cache 下, 是 package
-      result="${cache_path%\/}/${command}.yxct"
-    fi
-  elif [ -f "${cache_path}" ]; then
-    local file_name=$(basename "${cache_path}")
-    if [[ "${file_name}" == "${command}" ]] || [[ "${file_name}" == "${command}.yxct" ]]; then
-      result="${cache_path}"
-    fi
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --key )
+        shift
+        key=$1
+      ;;
+
+      *)
+        yxct_fatal "Invalid params:${$1}"
+    esac
+    shift
+  done
+
+  local index_path=$(yxct_get_cmd_item --index)
+  if [ -z "${index_path}" ]; then
+    yxct_fatal "failed to get index path"
   fi
 
-  echo "${result}"
+  # git addr
+  local git_addr=$(cmd_config read --key index.repo)
+  if [ -z "${git_addr}" ]; then
+    git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
+  fi
+
+  # branch
+  local git_branch=$(cmd_config read --key index.branch)
+  if [ -z "${git_branch}" ]; then
+    git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
+  fi
+
+  # repo folder name
+  local index_dir_name=
+  if [[ $(yxct_os_type) == 'osx' ]]; then
+    index_dir_name=$(echo "${git_addr}#${git_branch}" | md5)
+  else
+    index_dir_name=$(echo "${git_addr}#${git_branch}" | md5sum | awk '{print $1}')
+  fi
+
+  # repo dir
+  local index_config="${index_path%\/}/${index_dir_name}/${command}.conf"
+  if [ -f "${index_config}" ]; then
+    yxct_config_read --file "${index_config}" --key "${}"
+  fi
 }
 
 
@@ -2032,87 +2061,140 @@ function update_index_if_need()
     # repo dir
     local repo="${index_path%\/}/${index_dir_name}"
 
-    # 如果仓库存在，尝试更新仓库
-    if [ -d "${repo}/.git" ]  &&  git -C "${repo}" rev-parse --git-dir &> /dev/null; then
-
-      yxct_verbcmd "git -C ${repo} fetch"
-      local git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
-      local git_fetch_head=$(git -C "${repo}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
-      yxct_verbose "head:${git_head}"
-      yxct_verbose "new:${git_fetch_head}"
-
-      # check whether need to update
-      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
-
-        yxct_msg "begin update..."
-        
-        # check the repo
-        local git_status=
-        if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
-          yxct_fatal "failed to get git status"
-        fi
-        
-        # clean the repo if need
-        if [ -n "${git_status}" ]; then
-          yxct_msg "the repo is dirty, try recover..."
-          
-          # clean the repo
-          yxct_verbcmd "git -C ${repo} reset --hard HEAD --"
-          yxct_verbcmd "git -C ${repo} clean -fd"
-          
-          # check clean result
-          if ! git_status=$(git -C "${repo}" status --porcelain=v1); then
-            yxct_fatal "failed to get git status after clean yxct repo"
-          fi
-          if [ -n "${git_status}" ]; then
-            yxct_fatal "failed to clean ${CMD} repo"
-          fi
-        fi
-
-        #pull the repo
-        if ! yxct_verbcmd "git -C ${repo} pull"; then
-          yxct_fatal "failed to pull repo"
-        fi
-        
-        # re-check upgrade result.
-        git_head=$(git -C "${repo}" log HEAD | head -n 1 | awk '{print $2}')
-        if [[ "${git_head}" == "${git_fetch_head}" ]]; then
-          yxct_msg 'upgrade success.'
-        else
-          yxct_fatal 'upgrade failed.'
-        fi
-
-      fi #end of if [[ "${git_head}" != "${git_fetch_head}" ]]
-
+    # update index repo
+    yxct_git_repo update --repo "${repo}" --addr "${repo}"
+    local result=$?
+    if [[ "${result}" == '0' ]]; then
+      yxct_msg "update success"
+    elif [[ "${result}" == '1' ]]; then
+      yxct_msg "${CMD} is already the latest version"
     else
-
-      # the index repo dir is already exist, but not a repo. remove it.
-      if [ -d "${repo}" ]; then
-        yxct_err "the index repo exist, but not a repo. ${CMD} will try to remove it:${repo}"
-        yxct_verbcmd "${RM} -rf ${repo}"
-        if [ -d "${repo}" ]; then
-          yxct_fatal "failed to remove an invalid index dir:${repo}"
-        fi
-      fi
-      
-      # create index repo dir if need.
-      if ! [ -d "${repo}" ]; then
-        yxct_verbcmd "${MKDIR} -p ${repo}"
-        if ! [ -d "${repo}" ]; then
-          yxct_fatal "failed to create index repo directory"
-        fi
-      fi
-
-      # if the repo not exist, clone a new repo.
-      if ! git clone "${git_addr}" "${repo}"; then
-        yxct_fatal "failed to get index list."
-      fi
-
-    fi # end of (if [ -d "${repo}/.git" ] ....)
-
-    echo "${current}" > "${last_timestamp_file}"
+      yxct_fatal "update failed"
+    fi
 
   fi # end of (if ${should_update}; then)
+
+}
+
+
+function search_in_cache()
+{
+  local command=$1
+  shift
+  local cache_path="$*"
+
+  if [ -z "${command}" ]; then
+    yxct_fatal "command is empty"
+  fi
+
+  local result=
+  if [ -d "${cache_path}" ]; then
+    if [ -f "${cache_path%\/}/${command}" ] || [ -d "${cache_path%\/}/${command}" ]; then
+      # cache 下, 命令安装包可以是文件或文件夹
+      result="${cache_path%\/}/${command}"
+    elif [ -f "${cache_path%\/}/${command}.yxct" ]; then
+      # cache 下, 是 package
+      result="${cache_path%\/}/${command}.yxct"
+    fi
+  elif [ -f "${cache_path}" ]; then
+    local file_name=$(basename "${cache_path}")
+    if [[ "${file_name}" == "${command}" ]] || [[ "${file_name}" == "${command}.yxct" ]]; then
+      result="${cache_path}"
+    fi
+  fi
+
+  echo "${result}"
+}
+
+function checkout_a_cache()
+{
+  local version=
+  local githash=
+  local cache_path=
+
+  if ! [[ $1 =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  else
+    yxct_fatal "command is empty"
+  fi
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --version )
+        cursor=$1
+      ;;
+
+      --hash )
+        cursor=$1
+      ;;
+
+      --cache-dir )
+        cursor=$1
+      ;;
+
+      *)
+        if [[ $1 =~ ^-.*$ ]]; then
+          cursor=
+        fi
+
+        if [ -n "${cursor}" ]; then
+          if [[ "${cursor}" == '--version' ]]; then
+            version=$(echo "${version} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--hash' ]]; then
+            githash=$(echo "${githash} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--cache-dir' ]]; then
+            cache_path=$(echo "${cache_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          else
+            yxct_fatal "invalid name of ${cursor} $1"
+          fi
+        else
+          yx_fatal "invalid optional ${1}"
+        fi
+
+    esac
+    shift
+  done
+
+  if [ -z "${command}" ]; then
+    yxct_fatal "command is empty"
+  fi
+
+  if [ -z "${cache_path}" ]; then
+    yxct_fatal "chache directory is empty"
+  fi
+
+
+  # checkout the version
+  if [ -z "${githash}" ]; then
+
+    # get the version if --version params not provide
+    if [ -z "${version}" ]; then
+      version=$(search_in_index "${command}" --key "${latest}")
+      if [ -z "${version}" ]; then
+        yxct_fatal "failed to get latest version:${version} of command:${command}"
+      fi
+    fi
+
+    # get git-has with the 'version'
+    githash=$(search_in_index "${command}" --key "${version}")
+    if [ -n "${githash}" ]; then
+      yxct_fatal "unknown version:${version} of command:${command}"
+    fi
+
+  fi
+
+  # get git address
+  lcoal gitaddr=$(search_in_index "${command}" --key 'repo')
+  if [ -z "${gitaddr}" ]; then
+    yxct_fatal "failed to find a git address from the index config file of '${command}' command."
+  fi
+
+
+  local repo="${cache_path%\/}/${command}"
+
+  yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
 
 }
 
