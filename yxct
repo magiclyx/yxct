@@ -687,6 +687,10 @@ function yxct_get_cmd_item()
       --index )
        type=$1
       ;;
+
+      --index-repo )
+       type=$1
+      ;;
       
       *)
         echo "Invalid optional ${1}"
@@ -708,6 +712,35 @@ function yxct_get_cmd_item()
     result="${library_path%\/}/${CMD}/conf"
   elif [[ "${type}" == '--index' ]]; then
     result="${library_path%\/}/${CMD}/index"
+  elif [[ "${type}" == '--index-repo' ]]; then
+
+    local index_path=$(yxct_get_cmd_item --index)
+    if [ -z "${index_path}" ]; then
+      yxct_fatal "failed to get index path"
+    fi
+
+    # git addr
+    local git_addr=$(cmd_config read --key index.repo)
+    if [ -z "${git_addr}" ]; then
+      git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
+    fi
+
+    # branch
+    local git_branch=$(cmd_config read --key index.branch)
+    if [ -z "${git_branch}" ]; then
+      git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
+    fi
+
+    # repo folder name
+    local index_dir_name=
+    if [[ $(yxct_os_type) == 'osx' ]]; then
+      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5)
+    else
+      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5sum | awk '{print $1}')
+    fi
+
+    # repo dir
+    result="${index_path%\/}/${index_dir_name}"
   fi
   
   echo "${result}"
@@ -1940,33 +1973,13 @@ function search_in_index()
     shift
   done
 
-  local index_path=$(yxct_get_cmd_item --index)
-  if [ -z "${index_path}" ]; then
-    yxct_fatal "failed to get index path"
-  fi
-
-  # git addr
-  local git_addr=$(cmd_config read --key index.repo)
-  if [ -z "${git_addr}" ]; then
-    git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
-  fi
-
-  # branch
-  local git_branch=$(cmd_config read --key index.branch)
-  if [ -z "${git_branch}" ]; then
-    git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
-  fi
-
-  # repo folder name
-  local index_dir_name=
-  if [[ $(yxct_os_type) == 'osx' ]]; then
-    index_dir_name=$(echo "${git_addr}#${git_branch}" | md5)
-  else
-    index_dir_name=$(echo "${git_addr}#${git_branch}" | md5sum | awk '{print $1}')
+  local index_repo=$(yxct_get_cmd_item --index-repo)
+  if [ -z "${index_repo}" ]; then
+    yxct_fatal "failed to get index repo path"
   fi
 
   # repo dir
-  local index_config="${index_path%\/}/${index_dir_name}/index/${command}.conf"
+  local index_config="${index_repo%\/}/index/${command}.conf"
   if [ -f "${index_config}" ]; then
     yxct_config_read --file "${index_config}" --key "${key}"
   fi
@@ -2062,22 +2075,11 @@ function update_index_if_need()
       git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
     fi
 
-    # branch
-    local git_branch=$(cmd_config read --key index.branch)
-    if [ -z "${git_branch}" ]; then
-      git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
-    fi
-
-    # repo folder name
-    local index_dir_name=
-    if [[ $(yxct_os_type) == 'osx' ]]; then
-      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5)
-    else
-      index_dir_name=$(echo "${git_addr}#${git_branch}" | md5sum | awk '{print $1}')
-    fi
-
     # repo dir
-    local repo="${index_path%\/}/${index_dir_name}"
+    local repo=$(yxct_get_cmd_item --index-repo)
+    if [ -z "${repo}" ]; then
+      yxct_fatal "failed to get index repo path"
+    fi
 
     # update index repo
     yxct_msg "try update indexs library ..."
@@ -2800,7 +2802,7 @@ function cmd_install()
           # 如果提供了环境变量， 从环境变量中读取 cache 路径
           cache_path="${YXCT_CACHE_PATH}"
         else
-          # 如果没提供环境变量，使用默认cache路径.
+          # 如果没提供环境变量，使用默认cache路径
           cache_path="$(yxct_get_default_cache_path)"
         fi
       fi
