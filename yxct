@@ -902,9 +902,12 @@ function yxct_git_repo()
     fi
 
     # checkout the repo on specific git-hash.
-    yxct_msg "checkout repo HEAD to ${git_hash}..."
-    if ! yxct_verbcmd "git -C ${repo_path} checkout ${git_hash}"; then 
-      yxct_fatal "failed to checkout the repo on:${git_hash}"
+    local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
+    if [[ "${git_head}" != "${git_hash}" ]]; then
+      yxct_msg "checkout repo HEAD to ${git_hash}..."
+      if ! yxct_verbcmd "git -C ${repo_path} checkout ${git_hash}"; then 
+        yxct_fatal "failed to checkout the repo on:${git_hash}"
+      fi
     fi
 
     result=0
@@ -917,7 +920,6 @@ function yxct_git_repo()
       # git fetch
       yxct_msg "check update info..."
       yxct_verbcmd "git -C ${repo_path} fetch"
-      echo "here"
 
       # check whether need update
       local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
@@ -2067,12 +2069,15 @@ function update_index_if_need()
     local repo="${index_path%\/}/${index_dir_name}"
 
     # update index repo
-    yxct_git_repo update --repo "${repo}" --addr "${repo}"
+    yxct_msg "try update indexs library ..."
+    yxct_git_repo update --repo "${repo}" --addr "${git_addr}"
     local result=$?
     if [[ "${result}" == '0' ]]; then
-      yxct_msg "update success"
+      date '+%s' > "${last_timestamp_file}"
+      yxct_msg "indexs library update success"
     elif [[ "${result}" == '1' ]]; then
-      yxct_msg "${CMD} is already the latest version"
+      date '+%s' > "${last_timestamp_file}"
+      yxct_msg "indexs library is already the latest version"
     else
       yxct_fatal "update failed"
     fi
@@ -2167,7 +2172,7 @@ function checkout_a_cache()
   fi
 
   if [ -z "${cache_path}" ]; then
-    yxct_fatal "chache directory is empty"
+    yxct_fatal "cache directory is empty"
   fi
 
 
@@ -2176,7 +2181,7 @@ function checkout_a_cache()
 
     # get the version if --version params not provide
     if [ -z "${version}" ]; then
-      version=$(search_in_index "${command}" --key "${latest}")
+      version=$(search_in_index "${command}" --key 'latest')
       if [ -z "${version}" ]; then
         yxct_fatal "failed to get latest version:${version} of command:${command}"
       fi
@@ -2184,14 +2189,14 @@ function checkout_a_cache()
 
     # get git-has with the 'version'
     githash=$(search_in_index "${command}" --key "${version}")
-    if [ -n "${githash}" ]; then
+    if [ -z "${githash}" ]; then
       yxct_fatal "unknown version:${version} of command:${command}"
     fi
 
   fi
 
   # get git address
-  lcoal gitaddr=$(search_in_index "${command}" --key 'repo')
+  local gitaddr=$(search_in_index "${command}" --key 'repo')
   if [ -z "${gitaddr}" ]; then
     yxct_fatal "failed to find a git address from the index config file of '${command}' command."
   fi
@@ -2199,6 +2204,7 @@ function checkout_a_cache()
 
   local repo="${cache_path%\/}/${command}"
 
+  yxct_msg "prepare ${command} cache ..."
   yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
 
 }
@@ -2747,7 +2753,7 @@ function cmd_install()
           yxct_fatal "failed to update index"
         fi
 
-        if ! checkout_a_cache "${command}"; then
+        if ! checkout_a_cache "${command}" --cache-dir "${cache_path}"; then
           yxct_fatal "failed to checkout '${command}'"
         fi
       fi
