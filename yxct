@@ -824,7 +824,7 @@ function yxct_git_repo()
     # check the git address is same with '--address params'
     if ${valid}; then
       if [ -n "${git_addr}" ]; then
-        local repo_git_addr=$(git -C "${repo_path}" remote -v | grep -i '\\(fetch\)' | awk '{print $2}')
+        local repo_git_addr=$(git -C "${repo_path}" remote -v | grep -i '\(fetch\)' | awk '{print $2}')
         if [[ "${git_addr}" != "${repo_git_addr}" ]]; then
           valid=false
         fi
