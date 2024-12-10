@@ -2724,20 +2724,14 @@ function cmd_install()
       # 如果 '--cache' 参数未提供 path
       if [ -z "${cache_path}" ]; then
         
+        # 获取cache, cache 路径可以为空或不存在
+        # 因为后面 如果未指定'--cache'参数，可以从网络拉取
         if [ -n "${YXCT_CACHE_PATH}" ]; then
           # 如果提供了环境变量， 从环境变量中读取 cache 路径
-          # 环境变量中的 cache路径必须存在
           cache_path="${YXCT_CACHE_PATH}"
-          if ! [ -e "${cache_path}" ]; then
-            yxct_fatal "${cache_path} not exist"
-          fi
         else
           # 如果没提供环境变量，使用默认cache路径.
-          # 默认 cache 路径可能是空的或者未创建, 则说明未找到命令
           cache_path="$(yxct_get_default_cache_path)"
-          if ! [ -d "${cache_path}" ]; then
-            yxct_fatal "can not find command ${command} from cache"
-          fi
         fi
       fi
 
