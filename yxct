@@ -1975,6 +1975,7 @@ function search_in_index()
 
 function update_index_if_need()
 {
+  # 是否强制更新
   local force_update=false
   if [ -n "${1}" ] && [[ "${1}" == '--force' ]]; then
     force_update=true
@@ -2085,7 +2086,7 @@ function update_index_if_need()
     if [[ "${result}" == '0' ]]; then
       date '+%s' > "${last_timestamp_file}"
       yxct_msg "indexs library update success"
-    elif [[ "${result}" == '1' ]]; then
+    elif [[ "${result}" == '11' ]]; then
       date '+%s' > "${last_timestamp_file}"
       yxct_msg "indexs library is already the latest version"
     else
