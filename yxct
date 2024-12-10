@@ -1975,6 +1975,11 @@ function search_in_index()
 
 function update_index_if_need()
 {
+  local force_update=false
+  if [ -n "${1}" ] && [[ "${1}" == '--force' ]]; then
+    force_update=true
+  fi
+
   # local need_update=false
   local index_path=$(yxct_get_cmd_item --index)
   if [ -z "${index_path}" ]; then
@@ -1985,6 +1990,7 @@ function update_index_if_need()
   local last_timestamp_file="${index_path}/last"
 
 
+  # create the index path directory if not exist
   if ! [ -d "${index_path}" ]; then
     # need_update=true
     yxct_verbcmd "${MKDIR} -p ${index_path}"
@@ -1995,52 +2001,56 @@ function update_index_if_need()
 
   #check whether should update index repo
   local should_update=true
+  # 如果不是强制更新，才会判断 should_update 选项
+  if ! ${force_update}; then
 
-  # check update flag
-  if ${should_update}; then
-    local update=$(cmd_config read --key index.update)
-    if [ -n "${update}" ]; then
-      if yxct_strcontains "${update}" "no 0 false" --ignorecase; then
-        should_update=false
-      fi
-    fi
-  fi
-
-
-  # check schedule
-  if ${should_update}; then
-
-    # get schedule
-    local schedule=$(cmd_config read --key index.schedule)
-    if [ -z "${schedule}" ]; then
-      schedule="${YXCT_INDEX_DEFAULT_SCHEDULE}"
-    fi
-    local schedule_in_seconds=$(yxct_datastr_to_second "${schedule}")
-
-    # get current timestamp
-    local current=$(date '+%s')
-    if [ -z "${current}" ]; then
-      yxct_fatal "failed to get current timestamp"
-    fi
-
-    # get last update timestamp
-    if [ -f "${last_timestamp_file}" ]; then
-
-      local last=$(cat "${last_timestamp_file}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
-      if [ -z "${last}" ]; then
-        : # 上次更新时间戳不存在，不需要验证
-      elif [[ "${last}" =~ ^[0-9]{10}$ ]]; then
-        # check schedule
-        if [ $((current-last)) -lt "${schedule_in_seconds}" ]; then
+    # check update flag
+    if ${should_update}; then
+      local update=$(cmd_config read --key index.update)
+      if [ -n "${update}" ]; then
+        if yxct_strcontains "${update}" "no 0 false" --ignorecase; then
           should_update=false
         fi
-      else
-        # 上次更新时间戳，格式不对。报个error, 然后忽略时间戳
-        yxct_err "invalid last update timestamp in index repo"
+      fi
+    fi #end of (if ${should_update}; then)
+
+
+    # check schedule
+    if ${should_update}; then
+
+      # get schedule
+      local schedule=$(cmd_config read --key index.schedule)
+      if [ -z "${schedule}" ]; then
+        schedule="${YXCT_INDEX_DEFAULT_SCHEDULE}"
+      fi
+      local schedule_in_seconds=$(yxct_datastr_to_second "${schedule}")
+
+      # get current timestamp
+      local current=$(date '+%s')
+      if [ -z "${current}" ]; then
+        yxct_fatal "failed to get current timestamp"
       fi
 
-    fi
-  fi
+      # get last update timestamp
+      if [ -f "${last_timestamp_file}" ]; then
+        local last=$(cat "${last_timestamp_file}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+        if [ -z "${last}" ]; then
+          : # 上次更新时间戳不存在，不需要验证
+        elif [[ "${last}" =~ ^[0-9]{10}$ ]]; then
+          # check schedule
+          if [ $((current-last)) -lt "${schedule_in_seconds}" ]; then
+            should_update=false
+          fi
+        else
+          # 上次更新时间戳，格式不对。报个error, 然后忽略时间戳
+          yxct_err "invalid last update timestamp in index repo"
+        fi
+      fi
+
+    fi # end of (if ${should_update}; then)
+
+  fi # end of ( if ! ${force_update}; then)
+
 
 
   if ${should_update}; then
@@ -3279,15 +3289,25 @@ function cmd_update()
     fi
 
 
+    yxct_msg "begin update ${CMD}..."
     yxct_git_repo update --repo "${repo}"
     local result=$?
     if [[ "${result}" == '0' ]]; then
-      yxct_msg "update success"
+      yxct_msg "done"
     elif [[ "${result}" == '11' ]]; then
       yxct_msg "${CMD} is already the latest version"
     else
       yxct_fatal "update failed"
     fi
+
+    yxct_msg "begin update indexs library..."
+    if update_index_if_need --force; then
+      yxct_msg "done"
+    else
+      yxct_fatal "failed to update index library"
+    fi
+
+    yxct_msg "update success"
 
   fi
 
