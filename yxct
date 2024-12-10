@@ -2176,36 +2176,63 @@ function checkout_a_cache()
   fi
 
 
-  # checkout the version
-  if [ -z "${githash}" ]; then
-
-    # get the version if --version params not provide
-    if [ -z "${version}" ]; then
-      version=$(search_in_index "${command}" --key 'latest')
-      if [ -z "${version}" ]; then
-        yxct_fatal "failed to get latest version:${version} of command:${command}"
-      fi
-    fi
-
-    # get git-has with the 'version'
-    githash=$(search_in_index "${command}" --key "${version}")
-    if [ -z "${githash}" ]; then
-      yxct_fatal "unknown version:${version} of command:${command}"
-    fi
-
-  fi
-
   # get git address
   local gitaddr=$(search_in_index "${command}" --key 'repo')
   if [ -z "${gitaddr}" ]; then
     yxct_fatal "failed to find a git address from the index config file of '${command}' command."
   fi
 
-
+  # get git repo path
   local repo="${cache_path%\/}/${command}"
 
+  # checkout the version
+  local result=
   yxct_msg "prepare ${command} cache ..."
-  yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
+  if [ -n "${version}" ]  &&  yxct_strcontains "${version}" "head" --ignorecase; then
+
+    yxct_git_repo update --repo "${repo}" --addr "${gitaddr}"
+    result=$?
+
+    if [[ "${result}" == '0' ]]; then
+      yxct_msg "${command} cache updated to 'HEAD'"
+    elif [[ "${result}" == '11' ]]; then
+      result=0 # 这里要将 result置为0， 否则外面会报错
+      yxct_msg "${command} cache is already in 'HEAD'"
+    else
+      yxct_fatal "failed to prepared cache"
+    fi
+
+  else
+
+    if [ -z "${githash}" ]; then
+
+      # get the version if --version params not provide
+      if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
+        version=$(search_in_index "${command}" --key 'latest')
+        if [ -z "${version}" ]; then
+          yxct_fatal "failed to get latest version:${version} of command:${command}"
+        fi
+      fi
+
+      # get git-has with the 'version'
+      githash=$(search_in_index "${command}" --key "${version}")
+      if [ -z "${githash}" ]; then
+        yxct_fatal "unknown version:${version} of command:${command}"
+      fi
+
+    fi
+
+    yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
+    result=$?
+    if [[ "${result}" == '0' ]]; then 
+      yxct_msg "${command} cached success checkout to ${githash}"
+    else
+      yxct_fatal "failed to checkout ${command} cache to ${githash}"
+    fi
+  fi
+
+
+  return "${result}"
 
 }
 
@@ -2291,6 +2318,11 @@ cat <<EOF
                             provide a path. ${CMD} will try to find it from 'YXCT_CACHE_PATH' environment.
                             '--cache' has a lower priority than '--path'. If a valid '--path' parameter is
                             specified, the '--cache' parameter is ignored.
+  
+  --version <version>       Specify the version of the installation command. If version is 'Latest', ${CMD}
+                            will install the latest version of the command. If version is 'Head', ${CMD} will
+                            install the HEAD commit of command git repo.
+                            If '--path <path>' is indicated, the version string will be ignored.
   
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
@@ -2456,6 +2488,11 @@ cat <<EOF
                             '--cache' has a lower priority than '--path'. If a valid '--path' parameter is
                             specified, the '--cache' parameter is ignored.
   
+  --version <version>       Specify the version of the installation command. If version is 'Latest', ${CMD}
+                            will install the latest version of the command. If version is 'Head', ${CMD} will
+                            install the HEAD commit of command git repo.
+                            If '--path <path>' is indicated, the version string will be ignored.
+  
   --pass <pass>             When installing through a package, if the package requires a password,
                             you can provide it with '--pass' parameter. If the package requires a password,
                             but the '--pass' parameter is not used. ${CMD} will ask for the password during
@@ -2594,6 +2631,8 @@ function cmd_install()
   local use_cache=false
   local cache_path=
 
+  local version=
+
   local force=false
   local test=false
 
@@ -2627,6 +2666,11 @@ function cmd_install()
           cache_path=$2
           shift
         fi
+      ;;
+
+      --version )
+        shift
+        version=$1
       ;;
 
       --force )
@@ -2728,6 +2772,10 @@ function cmd_install()
       export YXCT_USEYXLIB=false
     fi 
 
+    if [ -z "${version}" ]; then
+      version='LATEST'
+    fi
+
     # 如果未提供'script_path'
     if [ -z "${script_path}" ]; then
 
@@ -2753,7 +2801,7 @@ function cmd_install()
           yxct_fatal "failed to update index"
         fi
 
-        if ! checkout_a_cache "${command}" --cache-dir "${cache_path}"; then
+        if ! checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"; then
           yxct_fatal "failed to checkout '${command}'"
         fi
       fi
@@ -2764,24 +2812,6 @@ function cmd_install()
         yxct_fatal "can not find command ${command} from cache"
       fi
       
-      # # 如果使用了 --cache 参数
-      # if ${use_cache}; then
-        
-      #   # 在cache中搜索命令安装包，并更新script_path
-      #   script_path=$(search_in_cache "${command}" "${cache_path}")
-      #   if [ -z "${script_path}" ]; then
-      #     yxct_fatal "can not find command ${command} from cache"
-      #   fi
-
-      # else
-      #   if ! update_index_if_need; then
-      #     yxct_fatal "failed to update index"
-      #   fi
-
-      #   checkout_a_cache "${command}"
-      #   # exit 0
-      #   yxct_fatal "Script path is empty. Use --help to show more information."
-      # fi # end of (if ${use_cache}; then)
     fi
 
 
