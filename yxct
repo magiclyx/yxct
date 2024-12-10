@@ -1964,9 +1964,9 @@ function search_in_index()
   fi
 
   # repo dir
-  local index_config="${index_path%\/}/${index_dir_name}/${command}.conf"
+  local index_config="${index_path%\/}/${index_dir_name}/index/${command}.conf"
   if [ -f "${index_config}" ]; then
-    yxct_config_read --file "${index_config}" --key "${}"
+    yxct_config_read --file "${index_config}" --key "${key}"
   fi
 }
 
