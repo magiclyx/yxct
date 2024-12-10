@@ -862,6 +862,11 @@ function yxct_git_repo()
 
   function __yxct_clone_new_repo()
   {
+    local git_addr=$1
+    if [ -z "${git_addr}" ]; then
+      yxct_fatal "git addr is empty"
+    fi
+
     # remove old repo directory if exist
     if [ -d "${repo_path}" ]; then
       yxct_verbcmd "${RM} -rf ${repo_path}"
@@ -876,7 +881,7 @@ function yxct_git_repo()
     fi
 
     # clone a new repo
-    if ! git clone "${git_addr}" "${repo_path}"; then
+    if ! yxct_verbcmd "git clone ${git_addr} ${repo_path}"; then
       yxct_fatal "failed to clone a new repo."
     fi
   }
@@ -893,7 +898,7 @@ function yxct_git_repo()
     else
       # clone a new repo
         yxct_msg "clone a new repo..."
-      __yxct_clone_new_repo
+      __yxct_clone_new_repo "${git_address}"
     fi
 
     # checkout the repo on specific git-hash.
@@ -937,7 +942,7 @@ function yxct_git_repo()
     else
       # clone a new repo
       yxct_msg "clone a new repo..."
-      if ! __yxct_clone_new_repo; then
+      if ! __yxct_clone_new_repo "${git_address}"; then
         yxct_fatal "failed to clone new repo"
       fi
       result=0
