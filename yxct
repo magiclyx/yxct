@@ -2561,11 +2561,11 @@ cat <<EOF
   --force                   If an existing file on bin-path, remove it.
 
 
-  The followint options indicate destination path:
+  The following options indicate destination path:
 $(__usage_install_destination_info)
   
 
-  The followint options use for debug
+  The following options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
 
   --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
@@ -2589,7 +2589,7 @@ cat <<EOF
   usage: ${CMD} search command --cache [cache-path] [--reg] [--info-level xxx|--no-depend]
   search a command from a local cache directory
 
-  The followint option are availiable:
+  The following option are availiable:
   --cache [path]          ${CMD} will search from local cache directory instead of the indexs library.
                           If the '--cache' parameter does not provide a path, ${CMD} will try to find it
                           from 'YXCT_CACHE_PATH' environment.
@@ -2618,7 +2618,7 @@ cat <<EOF
   display the detail information of a command
 
 
-  The followint option are availiable:
+  The following option are availiable:
   --installed             Display a command's install information.
 
   --indexs                Display detail information of a command in indexs library. 
@@ -2634,7 +2634,7 @@ cat <<EOF
     The priority order is: '--installed' > '--indexs' > '--cache'
 
 
-  The followint option are availiable:
+  The following option are availiable:
   --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level            Command output level. 
@@ -2709,11 +2709,11 @@ cat <<EOF
                             ${CMD} will try to delete all of them.
 
 
-  The followint options indicate target path:
+  The following options indicate target path:
 $(__usage_install_destination_info)
 
 
-  The followint options use for debug
+  The following options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
 
   --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
@@ -2799,11 +2799,11 @@ cat <<EOF
   --force                   If an existing file on bin-path, remove it.
 
 
-  The followint options indicate destination path:
+  The following options indicate destination path:
 $(__usage_reinstall_destination_info)
   
 
-  The followint options use for debug
+  The following options use for debug
   --test                    ${CMD} will not execute any comannd but output them into stdout instead.
 
   --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
@@ -2824,7 +2824,7 @@ cat <<EOF
   usage: ${CMD} update [--info-level xxx]
   Fetch the newest version of ${CMD} and all formulae from GitHub using git and perform any necessary migrations.
 
-  The followint option are availiable:
+  The following option are availiable:
   --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level            Command output level. 
@@ -2847,7 +2847,7 @@ cat <<EOF
   set a config item with specific key
 
 
-  The followint option are availiable:
+  The following option are availiable:
   --key           key of the key-value config item.
   --val           value of the key-value config item.
 
@@ -2872,7 +2872,7 @@ cat <<EOF
   usage: ${CMD} unpack <--repo-path path> <--pack-path path> [--pass xxx | --pass] [--force|--info-level]
   Extra script from ${CMD} installation pack
 
-  The followint option are availiable:
+  The following option are availiable:
   --pass | --pass <xxx>   It's meand the installation package requires a password, and if no password
                           parameter is provided, ${CMD} will ask for a password during
                           the packing/unpacking process
@@ -2896,7 +2896,7 @@ cat <<EOF
   usage: ${CMD} list [--info-level | --no-depend]
   List all installed command tool.
 
-  The followint option are availiable:
+  The following option are availiable:
   --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level            Command output level. 
