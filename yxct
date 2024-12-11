@@ -4249,7 +4249,20 @@ function cmd_list()
     fi
 
     for item in "${cellar_path%\/}"/*; do
-      basename "${item}"
+
+      local command=$(basename "${item}")
+      if [[ "${command}" == '*' ]]; then
+        continue
+      fi
+
+      local version=
+      local info_file="${cellar_path%\/}/${command}/info"
+      if [ -f "${info_file}" ]; then
+        version=$(yxct_config_read --file "${info_file}" --key 'version')
+      fi
+
+      printf "%s\t%s\n" "${command}" "${version}"
+
     done
 
   fi
