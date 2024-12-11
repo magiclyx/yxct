@@ -3154,7 +3154,7 @@ function cmd_install()
               setup_cache_params="--cache-dir ${cache_path}"
             fi
 
-            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" ${setup_cache_params}
+            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
           else
             yxct_fatal "failed on install ${command}"
           fi
@@ -3175,7 +3175,7 @@ function cmd_install()
                 setup_cache_params="--cache-dir ${cache_path}"
               fi
              
-              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
+              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
             else
               yxct_fatal "failed on install ${command}"
             fi
@@ -3188,7 +3188,7 @@ function cmd_install()
                 setup_cache_params="--cache-dir ${cache_path}"
               fi
 
-              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
+              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
             else
               yxct_fatal "failed on install ${command}"
             fi
@@ -3208,7 +3208,7 @@ function cmd_install()
               setup_cache_params="--cache-dir ${cache_path}"
             fi
 
-            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" ${setup_cache_params}
+            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
           else
             yxct_fatal "failed on install ${command}"
           fi
@@ -3233,7 +3233,7 @@ function cmd_install()
                   setup_cache_params="--cache-dir ${cache_path}"
                 fi
 
-                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
+                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
@@ -3246,7 +3246,7 @@ function cmd_install()
                   setup_cache_params="--cache-dir ${cache_path}"
                 fi
 
-                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
+                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
