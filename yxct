@@ -1063,7 +1063,23 @@ function yxct_get_cellar_item()
        type=$1
       ;;
 
+      --bin-path )
+       type=$1
+      ;;
+
       --command-hash )
+       type=$1
+      ;;
+
+      --command-version )
+       type=$1
+      ;;
+
+      --command-githash )
+       type=$1
+      ;;
+
+      --command-gitaddr )
        type=$1
       ;;
 
@@ -1105,6 +1121,34 @@ function yxct_get_cellar_item()
     else
       result=1
     fi
+  elif [[ "${type}" == '--command-version' ]]; then
+    if [ -f "${cellar_path}/info" ]; then
+      yxct_config_read --file "${cellar_path}/info" --key 'version'
+      result=$?
+    else
+      result=1
+    fi
+  elif [[ "${type}" == '--command-githash' ]]; then
+    if [ -f "${cellar_path}/info" ]; then
+      yxct_config_read --file "${cellar_path}/info" --key 'githash'
+      result=$?
+    else
+      result=1
+    fi
+  elif [[ "${type}" == '--command-gitaddr' ]]; then
+    if [ -f "${cellar_path}/info" ]; then
+      yxct_config_read --file "${cellar_path}/info" --key 'gitaddr'
+      result=$?
+    else
+      result=1
+    fi
+  elif [[ "${type}" == '--bin-path' ]]; then
+    if [ -f "${cellar_path}/info" ]; then
+      yxct_config_read --file "${cellar_path}/info" --key 'dest'
+      result=$?
+    else
+      result=1
+    fi
   elif [[ "${type}" == '--cellar-path' ]]; then
     echo "${cellar_path}"
   else
@@ -1122,7 +1166,7 @@ function setup_cellar()
   local install_script=
   local install_file=
   local cache_dir=
-
+  local bin_path=
   local version=
 
   local option=
@@ -1157,6 +1201,11 @@ function setup_cellar()
         shift
         install_script=$1
       ;; 
+
+      --bin-path )
+        shift
+        bin_path=$1
+      ;;
 
       --cache-dir )
         shift
@@ -1263,6 +1312,11 @@ function setup_cellar()
         yxct_config_write --file "${info_file}" --key "version" --val "${version}"
       fi
 
+    fi
+
+    # bin-path
+    if [ -n "${bin_path}" ]; then
+      yxct_config_write --file "${info_file}" --key "dest" --val "${bin_path}"
     fi
 
   elif [[ "${option}" == 'UNINSTALL' ]]; then
