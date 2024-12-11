@@ -2611,6 +2611,43 @@ EOF
 }
 
 
+function yxct_usage_info()
+{
+cat <<EOF
+  usage: ${CMD} info command [--installed] [--cache [path]] [--indexs] [--info-level xxx|--no-depend]
+  display the detail information of a command
+
+
+  The followint option are availiable:
+  --installed             Display a command's install information.
+
+  --indexs                Display detail information of a command in indexs library. 
+                          You can first use the '${CMD} update' command to update the indexs library
+
+  --cache [path]          Display cache information of a command.
+                          If the '--cache' parameter does not provide a path, ${CMD} will try to find it
+                          from 'YXCT_CACHE_PATH' environment.
+                          If 'YXCT_CACHE_PATH' environment not exist, ${CMD} will use default cache directory.
+  
+  NOTE:
+    If no display parameters are specified, ${CMD} will look for existing items in order of priority, displaying one of them.
+    The priority order is: '--installed' > '--indexs' > '--cache'
+
+
+  The followint option are availiable:
+  --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level            Command output level. 
+                          The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                          or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
+
 function yxct_usage_uninstall()
 {
 
@@ -4298,6 +4335,293 @@ function cmd_search()
   fi
 }
 
+
+function cmd_info()
+{
+  local info_level=
+  local no_depend=false
+  local show_help=false
+
+  local install_info=false
+  local indexs_info=false
+  local cache_info=false
+  local cache_path=
+
+  local command=
+  if [ -n "$1" ] && ! [[ $1 =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi
+
+
+  while [ $# -gt 0 ]; do
+
+    case $1 in
+
+      --cache )
+        cache_info=true;
+        if ! [[ "$2" =~ ^-.*$ ]]; then
+          cache_path=$2
+          shift
+        fi
+      ;;
+
+      --installed )
+        install_info=true
+      ;;
+
+      --indexs )
+        indexs_info=true
+      ;;
+
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --no-depend )
+        no_depend=true
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        yx_fatal "invalid optional ${1}"
+      ;;
+    esac
+    shift
+  done
+
+  if ${show_help}; then
+    yxct_usage_info
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+    if [ -z "${command}" ]; then
+      yxct_fatal "command is empty. use '--help' to see more information"
+    fi
+
+    # 因为info命令要输出信息, 这里静默更新
+    # 静默更新，只作用于标准输出和错误输出。 文件日志和syslog 扔会有输出
+    if ! update_index_if_need &> /dev/null; then
+      yxct_fatal "failed to update index"
+    fi
+
+    #-------------------------------------------------------------------------------
+    ################################################################################
+    # cellar, 判断是否已安装
+    ################################################################################
+    local cmd_cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
+
+    ################################################################################
+    # cache content, 判断缓存是否存在
+    ################################################################################
+    # 如果 '--cache' 参数未提供 path
+    if [ -z "${cache_path}" ]; then
+      
+      # 获取cache, cache 路径可以为空或不存在
+      # 因为后面 如果未指定'--cache'参数，可以从网络拉取
+      if [ -n "${YXCT_CACHE_PATH}" ]; then
+        # 如果提供了环境变量， 从环境变量中读取 cache 路径
+        cache_path="${YXCT_CACHE_PATH}"
+      else
+        # 如果没提供环境变量，使用默认cache路径
+        cache_path="$(yxct_get_default_cache_path)"
+      fi
+    fi
+    local search_result_in_cache=$(search_in_cache "${command}" "${cache_path}")
+
+    ################################################################################
+    #indexs git addr, 判断indexs是否存在
+    ################################################################################
+    local gitaddr=$(search_in_index "${command}" --key 'repo')
+    #-------------------------------------------------------------------------------
+
+
+    # 如果未指定参数显示哪种信息， 按照优先级顺序，显示一个 
+    # 已安装信息 > indexs 信息 > 缓存信息
+    if ! ${install_info}  &&  ! ${cache_info}  &&  ! ${indexs_info}; then
+      if [ -n "${cmd_cellar_path}" ] && [ -d "${cmd_cellar_path}" ]; then
+        install_info=true
+      elif [ -n "${gitaddr}" ]; then
+        indexs_info=true
+      elif [ -n "${search_result_in_cache}" ]; then
+        cache_info=true
+      fi
+    fi
+
+    
+    # installed info
+    if ${install_info}; then
+      printf "[install info]:\n"
+
+      if [ -n "${cmd_cellar_path}" ] && [ -d "${cmd_cellar_path}" ]; then
+        printf "installed:YES\n"
+
+        local version=$(yxct_get_cellar_item "${command}" --command-version)
+        if [ -n "${version}" ]; then
+          printf "version:${version}\n"
+        fi
+
+        local dest=$(yxct_get_cellar_item "${command}" --bin-path)
+        if [ -n "${dest}" ]; then
+          printf "dest:${dest}\n"
+        fi
+
+        local setup_script=$(yxct_get_cellar_item "${command}" --setup-script)
+        if [ -n "${setup_script}" ]; then
+          printf "setup script:YES\n"
+        else
+          printf "setup script:NO\n"
+        fi
+
+        local git_addr=$(yxct_get_cellar_item "${command}" --command-gitaddr)
+        if [ -n "${git_addr}" ]; then
+          printf "git address:${git_addr}\n"
+        fi
+
+        local git_hash=$(yxct_get_cellar_item "${command}" --command-githash)
+        if [ -n "${git_hash}" ]; then
+          printf "git hash:${git_hash}\n"
+        fi
+
+        local command_hash=$(yxct_get_cellar_item "${command}" --command-hash)
+        if [ -n "${command_hash}" ]; then
+          printf "file hash:${command_hash}\n"
+        fi
+      else
+        printf "installed:NO\n"
+      fi
+
+      printf "\n"
+    fi
+
+
+
+    # cached info
+    if ${cache_info}; then
+      printf "[cache info]:\n"
+
+
+      if [ -n "${search_result_in_cache}" ]; then
+
+        printf "exist:YES\n"
+
+        if [ -f "${search_result_in_cache}" ]; then
+
+          printf "git:NO\n"
+
+          local filename=$(basename "${search_result_in_cache}")
+          if [[ "${filename##*.}" == "yxct" ]]; then
+            # 缓存类型时一个 yxct package
+            printf "type:${CMD} package\n"
+            printf "setup-script:UNKNOWN\n"
+          elif echo "${filename}" |  grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
+            # 缓存类型时一个 安装脚本
+            printf "type:setup-script\n"
+            printf "setup-script:YES\n"
+          else
+            # 缓存类型时一个 文件 
+            printf "type:file\n"
+            printf "setup-script:NO\n"
+          fi
+
+        elif [ -d "${search_result_in_cache}" ]; then
+
+          if yxct_git_repo info --repo "${search_result_in_cache}"; then
+            printf "git:YES\n"
+          else
+            printf "git:NO\n"
+          fi
+
+          local install_script_filename=$(search_file_by_reg_list "${search_result_in_cache}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
+          if [ -n "${install_script_filename}" ]; then
+            # 缓存类型时一个 携带安装脚本的目录
+            printf "type:dir\n"
+            printf "setup-script:YES\n"
+          else
+            # 缓存类型时一个目录，但目录中只有一个文件
+            local singl_app_name=$(file_name_if_single "${search_result_in_cache}")
+            if [ -n "${singl_app_name}" ]; then
+              printf "type:file\n"
+              printf "setup-script:NO\n"
+            else
+              # 为之类型，基本时坏掉的缓存，不能使用
+              printf "type:unknown\n"
+              printf "setup-script:NO\n"
+            fi
+          fi
+        fi
+      else
+        printf "exist:NO\n"
+      fi
+
+      printf "\n"
+    fi
+
+
+    if ${indexs_info}; then
+      printf "[indexs info]:\n"
+
+      # 这里用 git addr 判断 index 是否存在
+      if [ -n "${gitaddr}" ]; then
+        printf "exist:YES\n"
+        printf "address:${gitaddr}\n"
+
+
+        # latest version
+        local latest=$(search_in_index "${command}" --key 'latest')
+        if [ -n "${latest}" ]; then
+          printf "latest:${latest}\n"
+        fi
+
+        printf "top 10 available version:\n"
+        local count=0
+        local column=0
+        for version in $(search_in_index yxfirewall --all-version); do
+
+          local prefix=
+
+          ((column=column+1))
+          ((count=count+1))
+
+          if ! [ "${column}" -eq '1' ]; then
+            prefix=', '
+          fi
+
+          printf "%s%s%s" "${prefix}" "${version}" "${surfix}"
+
+          if [ "${column}" -eq '5' ]; then
+            printf "\n"
+            column=0
+          fi
+
+          if [ "${count}" -eq '10' ]; then
+            break
+          fi
+
+        done
+
+      else
+        printf "exist:NO\n"
+      fi
+
+      # printf "\n"
+    fi
+
+  fi
+}
+
 function cmd_list()
 {
   local info_level=
@@ -4452,6 +4776,8 @@ elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
 elif [[ "${sub_cmd}" == 'search' ]]; then
   cmd_search $@
+elif [[ "${sub_cmd}" == 'info' ]]; then
+  cmd_info $@
 elif [[ "${sub_cmd}" == 'list' ]]; then
   cmd_list $@
 elif [[ "${sub_cmd}" == 'pack' ]]; then
