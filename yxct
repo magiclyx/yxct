@@ -2580,7 +2580,7 @@ EOF
 }
 
 
-function yxct_usage_earch()
+function yxct_usage_search()
 {
 cat <<EOF
   usage: ${CMD} search command [--reg] [--info-level xxx|--no-depend]
@@ -4206,7 +4206,7 @@ function cmd_search()
   done
 
   if ${show_help}; then
-    yxct_usage_earch
+    yxct_usage_search
     exit 0
   else
 
