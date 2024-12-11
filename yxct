@@ -1048,8 +1048,8 @@ function yxct_get_cellar_item()
       result=1
     fi
   elif [[ "${type}" == '--command-hash' ]]; then
-    if [ -f "${cellar_path}/hash" ]; then
-      grep -o "[^ ]\+\( \+[^ ]\+\)*" "${cellar_path}/hash"
+    if [ -f "${cellar_path}/info" ]; then
+      yxct_config_read --file "${cellar_path}/info" --key 'filehash'
       result=$?
     else
       result=1
@@ -1149,7 +1149,7 @@ function setup_cellar()
       if [ -f "${install_file}" ]; then
         local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
         if [ -n "${install_file_hash}" ]; then
-          echo "${install_file_hash}" > "${cellar_path}/hash"
+          yxct_config_write --file "${cellar_path}/info" --key "filehash" --val "${install_file_hash}"
         else
           yxct_fatal "failed to calculate the hash value on install file:${install_file}"
         fi
