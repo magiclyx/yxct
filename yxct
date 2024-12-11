@@ -2272,8 +2272,9 @@ cat <<EOF
   reinstall:    Reinstall a command tool.
   update:       Update to newest version of ${CMD}
   search:       Search a command
-  pack:         Create or extra a ${CMD} package.
   list:         list all installed command.
+  set/get:      Set or get ${CMD} config item
+  pack:         Create or extra a ${CMD} package.
 
   Other options
   Use '${CMD} uninstall --help' show this help information
