@@ -2271,6 +2271,7 @@ cat <<EOF
   uninstall:    Uninstall a command tool.
   reinstall:    Reinstall a command tool.
   update:       Update to newest version of ${CMD}
+  search:       Search a command
   pack:         Create or extra a ${CMD} package.
   list:         list all installed command.
 
@@ -2329,6 +2330,7 @@ cat <<EOF
                             '${CMD} pack --help' to see more information).
   --cache [path]            Command will be install from cache directory. If the --cache parameter does not
                             provide a path. ${CMD} will try to find it from 'YXCT_CACHE_PATH' environment.
+                            If 'YXCT_CACHE_PATH' environment not exist, ${CMD} will use default cache directory.
                             '--cache' has a lower priority than '--path'. If a valid '--path' parameter is
                             specified, the '--cache' parameter is ignored.
   
@@ -2366,6 +2368,38 @@ $(__usage_install_destination_info)
   Use '${CMD} install --help' show all help information
 EOF
 }
+
+
+function yxct_usage_earch()
+{
+cat <<EOF
+  usage: ${CMD} search command [--reg] [--info-level xxx|--no-depend]
+  search a command from indexs library.
+
+  usage: ${CMD} search command --cache [cache-path] [--reg] [--info-level xxx|--no-depend]
+  search a command from a local cache directory
+
+  The followint option are availiable:
+  --cache [path]          ${CMD} will search from local cache directory instead of the indexs library.
+                          If the '--cache' parameter does not provide a path, ${CMD} will try to find it
+                          from 'YXCT_CACHE_PATH' environment.
+                          If 'YXCT_CACHE_PATH' environment not exist, ${CMD} will use default cache directory.
+
+  --reg                   Search using an extended regular expressions instead of simple string matching
+
+
+  --no-depend             ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level            Command output level. 
+                          The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                          or a number greater than 0.
+
+  Other options
+  Use '${CMD} --help' show all help information
+
+EOF
+}
+
 
 function yxct_usage_uninstall()
 {
@@ -3857,6 +3891,166 @@ function cmd_pack()
   fi # end of (if ${show_help}; then)
 }
 
+function cmd_search()
+{
+  local use_cache=false
+  local cache_path=
+
+  local info_level=
+  local no_depend=false
+  local show_help=false
+
+  local use_reg=false
+  local search_string=
+  if [ -n $1 ] && ! [[ $1 =~ ^-.*$ ]]; then
+    search_string=$1
+    shift
+  else
+    yxct_fatal "search string is empty."
+  fi
+
+  local cursor=
+  while [ $# -gt 0 ]; do
+
+    case $1 in
+
+      --cache )
+        cursor=$1
+        use_cache=true
+        cache_path=
+      ;;
+
+      --reg )
+        cursor=
+        use_reg=true
+      ;;
+
+      --info-level )
+        cursor=
+        shift
+        info_level=$1
+      ;;
+
+      --no-depend )
+        cursor=
+        no_depend=true
+      ;;
+
+      --help | h )
+        cursor=
+        show_help=true
+      ;;
+
+      *)
+        if [[ $1 =~ ^-.*$ ]]; then
+          cursor=
+        fi
+        if [ -n "${cursor}" ]; then
+          if [[ "${cursor}" == '--cache' ]]; then
+            cache_path=$(echo "${cache_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          else
+            yxct_fatal "invalid name of ${cursor} $1"
+          fi
+        else
+          yx_fatal "invalid optional ${1}"
+        fi
+      ;;
+    esac
+    shift
+  done
+
+  if ${show_help}; then
+    yxct_usage_earch
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+    if ! update_index_if_need; then
+      yxct_fatal "failed to update index"
+    fi
+
+
+    # 如果不使用正则搜索, 要跑一边 escape
+    if ! ${use_reg}; then
+      search_string=$(echo "${search_string}" | _yxct_grep_escape) # 如果不使用正则，放开这行
+    fi
+
+
+    if ${use_cache}; then
+      
+      # get a valid cache path
+      # 如果 '--cache' 参数未提供 path
+      if [ -z "${cache_path}" ]; then
+        
+        # 获取cache, cache 路径可以为空或不存在
+        # 因为后面 如果未指定'--cache'参数，可以从网络拉取
+        if [ -n "${YXCT_CACHE_PATH}" ]; then
+          # 如果提供了环境变量， 从环境变量中读取 cache 路径
+          cache_path="${YXCT_CACHE_PATH}"
+        else
+          # 如果没提供环境变量，使用默认cache路径
+          cache_path="$(yxct_get_default_cache_path)"
+        fi
+      fi
+
+      for item in "${cache_path%\/}"/*; do
+        local filename=$(basename "${item}")
+        if [[ "${filename}" == '*' ]]; then
+          continue
+        fi
+
+        # check the search string
+        if ! echo "${filename%.*}" | grep -Eiq "${search_string}"; then
+          continue
+        fi
+
+        # 再用search_in_cache验证一下
+        local cache_result=$(search_in_cache "${filename%.*}" "${cache_path}")
+        if [ -n "${cache_result}" ]; then
+          echo "${filename%.*}"
+        fi
+
+      done
+    
+    else
+
+      if ! update_index_if_need; then
+        yxct_fatal "failed to update index"
+      fi
+
+      local index_repo=$(yxct_get_cmd_item --index-repo)
+      if [ -z "${index_repo}" ]; then
+        yxct_fatal "failed to get index repo path"
+      fi
+
+      for config in "${index_repo%\/}"/index/*.conf; do
+
+        local filename=$(basename "${config}")
+        if [[ "${filename}" == '*.conf' ]]; then
+          continue
+        fi
+
+        # check the search string
+        if ! echo "${filename%.*}" | grep -Eiq "${search_string}"; then
+          continue
+        fi
+
+        #output
+        echo "${filename%.*}"
+
+      done
+
+    fi
+
+  fi
+}
 
 function cmd_list()
 {
@@ -4000,6 +4194,8 @@ elif [[ "${sub_cmd}" == 'reinstall' ]]; then
   cmd_reinstall $@
 elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
+elif [[ "${sub_cmd}" == 'search' ]]; then
+  cmd_search $@
 elif [[ "${sub_cmd}" == 'list' ]]; then
   cmd_list $@
 elif [[ "${sub_cmd}" == 'pack' ]]; then
