@@ -641,6 +641,38 @@ function yxct_config_write()
   fi  
 }
 
+function yxct_config_allkeys()
+{
+  
+  local file=
+  
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --file )
+        shift
+        file=$1
+      ;;
+      
+      *)
+        yx_fatal "Invalid optional ${1}"
+      ;;
+    esac
+    shift
+  done
+  
+  
+  if [ -z "${file}" ]; then
+    yx_fatal 'file is empty'
+  fi
+  
+  if [ -f "${file}" ]; then
+    while read line; do
+      echo ${line} | sed -e "s/^[[:space:]]*\(.*\)[[:space:]]*=.*$/\1/g" | grep -o "[^ ]\+\( \+[^ ]\+\)*"
+    done < "${file}"
+  fi
+  
+}
+
 
 
 ###########################################################
@@ -2113,6 +2145,7 @@ function search_in_index()
 {
   local command=
   local key=
+  local all_version=false
 
   if ! [[ $1 =~ ^-.*$ ]]; then
     command=$1
@@ -2126,6 +2159,10 @@ function search_in_index()
       --key )
         shift
         key=$1
+      ;;
+
+      --all-version )
+        all_version=true
       ;;
 
       *)
@@ -2142,7 +2179,18 @@ function search_in_index()
   # repo dir
   local index_config="${index_repo%\/}/index/${command}.conf"
   if [ -f "${index_config}" ]; then
-    yxct_config_read --file "${index_config}" --key "${key}"
+
+    if ${all_version}; then
+      for version in $(yxct_config_allkeys --file "${index_config}"); do
+        if yxct_strcontains "${version}" "repo latest"; then
+          continue
+        fi
+        echo "${version}"
+      done
+    else
+      yxct_config_read --file "${index_config}" --key "${key}"
+    fi
+
   fi
 }
 
