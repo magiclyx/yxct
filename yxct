@@ -797,7 +797,10 @@ function yxct_git_repo()
     case $1 in
       --repo )
         cursor=$1
-        info=$1
+        if [ -z "${info}" ]; then
+          # 因为 --repo 参数必须有，所以只有在没指定其他info类型时，info才是--repo
+          info=$1
+        fi
       ;;
 
       --addr )
