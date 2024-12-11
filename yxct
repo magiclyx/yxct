@@ -4359,11 +4359,8 @@ function cmd_list()
         continue
       fi
 
-      local version=
-      local info_file="${cellar_path%\/}/${command}/info"
-      if [ -f "${info_file}" ]; then
-        version=$(yxct_config_read --file "${info_file}" --key 'version')
-      fi
+      local version=$(yxct_get_cellar_item "${command}" --command-version)
+
 
       printf "%s\t%s\n" "${command}" "${version}"
 
