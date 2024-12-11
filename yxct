@@ -1920,11 +1920,11 @@ function uninstall_by_bin_path()
       yxct_fatal "Can not find any script in path ${bin_path}"
     fi
 
+    local execute_file_path="${bin_path}/${command}"
     if ! [ -f "${execute_file_path}" ]; then
-      echo_file "Script does not exist:${execute_file_path}"
+      yxct_fatal "Script does not exist:${execute_file_path}"
     fi
 
-    local execute_file_path="${bin_path}/${command}"
     local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
     if [ -n "${cellar_hash}" ]; then
       if ! check_file_hash "${execute_file_path}" "${cellar_hash}"; then
