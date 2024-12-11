@@ -1119,6 +1119,9 @@ function setup_cellar()
 
   local install_script=
   local install_file=
+  local cache_dir=
+
+  local version=
 
   local option=
   if yxct_strcontains "$1" "install" --ignorecase; then
@@ -1151,6 +1154,16 @@ function setup_cellar()
       --install-script )
         shift
         install_script=$1
+      ;; 
+
+      --cache-dir )
+        shift
+        cache_dir=$1
+      ;; 
+
+      --version )
+        shift
+        version=$1
       ;; 
 
       *)
@@ -1194,17 +1207,60 @@ function setup_cellar()
       fi
     fi
 
+    # write information to info file
+
+    # write file hash
+    local info_file="${cellar_path}/info"
     if [ -n "${install_file}" ]; then
       if [ -f "${install_file}" ]; then
         local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
         if [ -n "${install_file_hash}" ]; then
-          yxct_config_write --file "${cellar_path}/info" --key "filehash" --val "${install_file_hash}"
+          yxct_config_write --file "${info_file}" --key "filehash" --val "${install_file_hash}"
         else
           yxct_fatal "failed to calculate the hash value on install file:${install_file}"
         fi
       else
         yxct_fatal "can not find a install file on setup cellar"
       fi
+    fi
+
+
+    local git_hash=
+    local git_addr=
+    if [ -n "${cache_dir}" ]; then
+      local command_repo="${cache_dir%\/}/${command}"
+      if [ -d "${command_repo}" ]; then
+
+        # write git hash
+        git_hash=$(yxct_git_repo info --repo "${command_repo}" --head)
+        if [ -n "${git_hash}" ]; then
+          yxct_config_write --file "${info_file}" --key "githash" --val "${git_hash}"
+        fi
+
+        # write git addr
+        git_addr=$(yxct_git_repo info --repo "${command_repo}" --addr)
+        if [ -n "${git_addr}" ]; then
+          yxct_config_write --file "${info_file}" --key "gitaddr" --val "${git_addr}"
+        fi
+
+      fi
+    fi
+
+    # write version
+    if [ -n "${version}" ]; then
+
+      if yxct_strcontains "${version}" "head" --ignorecase; then
+        : # version 是 head 时， 不记录
+      elif yxct_strcontains "${version}" "latest" --ignorecase; then
+        # version 是 latest时，通过index.conf获取真正的版本号
+        version=$(search_in_index "${command}" --key 'latest')
+        if [ -n "${version}" ]; then
+          yxct_config_write --file "${info_file}" --key "version" --val "${version}"
+        fi
+      else
+        yxct_config_write --file "${info_file}" --key "version" --val "${version}"
+      fi
+
     fi
 
   elif [[ "${option}" == 'UNINSTALL' ]]; then
@@ -2988,7 +3044,13 @@ function cmd_install()
         if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
         # 如果文件是一个安装脚本, 直接调用脚本
           if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-            setup_cellar install "${command}" --install-script "${script_path}"
+            
+            local setup_cache_params=
+            if [ -n "${cache_path}" ]; then
+              setup_cache_params="--cache-dir ${cache_path}"
+            fi
+
+            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" ${setup_cache_params}
           else
             yxct_fatal "failed on install ${command}"
           fi
@@ -3003,14 +3065,26 @@ function cmd_install()
           if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
           # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
             if install_file --file "${script_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --install-file "${script_path}" 
+              
+              local setup_cache_params=
+              if [ -n "${cache_path}" ]; then
+                setup_cache_params="--cache-dir ${cache_path}"
+              fi
+             
+              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
             else
               yxct_fatal "failed on install ${command}"
             fi
           else
           # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
             if install_file --file "${script_path}" "${force_params}" ${params}; then
-              setup_cellar install "${command}" --install-file "${script_path}" 
+
+              local setup_cache_params=
+              if [ -n "${cache_path}" ]; then
+                setup_cache_params="--cache-dir ${cache_path}"
+              fi
+
+              setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
             else
               yxct_fatal "failed on install ${command}"
             fi
@@ -3024,7 +3098,13 @@ function cmd_install()
           # 如果目录中找到安装脚本, 直接掉用那个安装脚本
           local script_path="${script_path%\/}/${install_script_filename}"
           if run_setup_script install --path "${script_path}" ${params} ${additional}; then
-            setup_cellar install "${command}" --install-script "${script_path}"
+            
+            local setup_cache_params=
+            if [ -n "${cache_path}" ]; then
+              setup_cache_params="--cache-dir ${cache_path}"
+            fi
+
+            setup_cellar install "${command}" --install-script "${script_path}" --version "${version}" ${setup_cache_params}
           else
             yxct_fatal "failed on install ${command}"
           fi
@@ -3043,14 +3123,26 @@ function cmd_install()
             if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
             # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
               if install_file --file "${app_path}" "${force_params}" ${params}; then
-                setup_cellar install "${command}" --install-file "${script_path}"
+
+                local setup_cache_params=
+                if [ -n "${cache_path}" ]; then
+                  setup_cache_params="--cache-dir ${cache_path}"
+                fi
+
+                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
             else
             # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
               if install_file --file "${app_path}" "${force_params}" ${params}; then
-                setup_cellar install "${command}" --install-file "${script_path}"
+
+                local setup_cache_params=
+                if [ -n "${cache_path}" ]; then
+                  setup_cache_params="--cache-dir ${cache_path}"
+                fi
+
+                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
