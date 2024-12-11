@@ -752,6 +752,8 @@ function yxct_get_cmd_item()
 # yxct_git_repo update --repo <repo-path> --addr <git-addr>
 #usage
 # yxct_git_repo checkout <git-hash> --repo <repo-path> --addr <git-addr>
+#usage
+# yxct_git_repo info --repo <repo-path> [--repo|--addr|--head]
 #
 # return value
 # update:
@@ -766,6 +768,9 @@ function yxct_git_repo()
   local git_address=
   local git_hash=
 
+  #operation 为 info 时使用
+  local info=
+
   local operation=
   if ! [[ "$1" =~ ^-.*$ ]]; then
     if yxct_strcontains "$1" 'checkout' --ignorecase; then
@@ -778,6 +783,8 @@ function yxct_git_repo()
       fi
     elif yxct_strcontains "$1" 'update' --ignorecase; then
       operation='UPDATE'
+    elif yxct_strcontains "$1" 'info' --ignorecase; then
+      operation='INFO'
     else
       operation=$1
     fi
@@ -791,10 +798,17 @@ function yxct_git_repo()
     case $1 in
       --repo )
         cursor=$1
+        info=$1
       ;;
 
       --addr )
         cursor=$1
+        info=$1
+      ;;
+
+      --head )
+        cursor=
+        info=$1
       ;;
 
       *)
@@ -981,6 +995,41 @@ function yxct_git_repo()
         yxct_fatal "failed to clone new repo"
       fi
       result=0
+    fi
+
+  elif [[ "${operation}" == 'INFO' ]]; then
+    if [[ "${info}" == '--repo' ]]; then
+      if __yxct_valid_repo; then
+        result=0
+      else
+        result=1
+      fi
+    elif [[ "${info}" == '--addr' ]]; then
+      if __yxct_valid_repo; then
+        local repo_git_addr=$(git -C "${repo_path}" remote -v | grep -i '\(fetch\)' | awk '{print $2}')
+        if [ -n "${repo_git_addr}" ]; then
+          echo "${repo_git_addr}"
+          result=0
+        else
+          result=1
+        fi
+      else
+        result=1
+      fi
+    elif [[ "${info}" == '--head' ]]; then
+      if __yxct_valid_repo; then
+        local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
+        if [ -n "${git_head}" ]; then
+          echo "${git_head}"
+          result=0
+        else
+          result=1
+        fi
+      else
+        result=1
+      fi
+    else
+      result=1
     fi
 
   else
