@@ -365,7 +365,6 @@ function yxct_strcontains()
     fi
   else
     for e in $(echo "${arr_str}"); do
-      echo "compare between ${e} and ${str}"
       [[ "${e}" == "${str}" ]] && return 0
     done
   fi
