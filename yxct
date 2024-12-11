@@ -4590,7 +4590,7 @@ function cmd_info()
         local column=0
         for version in $(search_in_index yxfirewall --all-version); do
 
-          local prefix=
+          local prefix=''
 
           ((column=column+1))
           ((count=count+1))
@@ -4611,6 +4611,10 @@ function cmd_info()
           fi
 
         done
+        
+        if ! [ "${column}" -eq '0' ]; then
+          printf "\n"
+        fi
 
       else
         printf "exist:NO\n"
