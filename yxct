@@ -2973,9 +2973,28 @@ cat <<EOF
 
 
   The following option are availiable:
-  --key           key of the key-value config item.
-  --val           value of the key-value config item.
+  --key <domian.key>     key of the key-value config item.
+  --val <value>          value of the key-value config item.
 
+  Current config info:
+  [domain]:index
+  index.repo      The git address of indexs library repo.
+  index.branch    The git branch of indexs library repo.
+
+  index.update    A boolean value. Whether to allow the index library to be updated automatically.
+                  When the index library is updated, it may increase the wait time for commands
+  index.schedule  The schedule of indexs library to be checked for updates.
+
+                  The schedule value format is:
+                  (y|year|years)(mon|month|months)(d|day|days)(h|hour|hours)(m|min|minute|minutes)(s|sec|second|seconds)
+
+                  For example: 
+                  '7d' means check update for every 7 days.
+                  '1mon7d4h' means check for updates once a month, seven days and four hours.
+
+
+
+  The following option are availiable:
   --no-depend     ${CMD} try not to depend on any other modules. It's a safe moodules.
 
   --info-level    Command output level. 
