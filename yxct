@@ -4904,13 +4904,16 @@ if [[ -z ${sub_cmd} ]]; then
   yxct_fatal "Param error. use '${CMD} --help' to show document"
 fi
 
-
-
-
+# 用于命令嵌套调用识别
 if [ -z "${YXCT_NESTED_FLAG}" ]; then
   export YXCT_NESTED_FLAG=1
 else
   YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+fi
+
+# 用于子命令再次调用 YXCT, 而系统中安装多个版本YXCT时，出现混乱
+if [ -z "${YXCT}" ]; then
+  export YXCT="${SOURCE}"
 fi
 
 
