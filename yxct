@@ -42,7 +42,7 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
 # index about
 YXCT_INDEX_DEFAULT_GIT_ADDR='git@github.com:magiclyx/yxctindex.git'
-YXCT_INDEX_DEFAULT_GIT_BRANCH='master'
+YXCT_INDEX_DEFAULT_GIT_BRANCH='main'
 YXCT_INDEX_DEFAULT_SCHEDULE=7day
 
 
@@ -798,6 +798,7 @@ function yxct_git_repo()
   local repo_path=
   local git_address=
   local git_hash=
+  local git_branch=
 
   #operation 为 info 时使用
   local info=
@@ -840,6 +841,11 @@ function yxct_git_repo()
         info=$1
       ;;
 
+      --branch )
+        cursor=$1
+        info=$1
+      ;;
+
       --head )
         cursor=
         info=$1
@@ -854,6 +860,8 @@ function yxct_git_repo()
             repo_path=$(echo "${repo_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
           elif [[ "${cursor}" == '--addr' ]]; then
             git_address=$(echo "${git_address} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--branch' ]]; then
+            git_branch=$(echo "${git_branch} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
           else
             yxct_fatal "invalid name of ${cursor} $1"
           fi
@@ -873,6 +881,20 @@ function yxct_git_repo()
     yxct_fatal "can not find git command."
   fi
 
+
+  function __yxct_default_branch()
+  {
+    local branch=
+    for name in main master; do
+      local output=$(git -C "${repo_path}" branch | grep ${name})
+      if [ -n "${output}" ]; then
+        branch="${name}"
+        break
+      fi
+    done
+
+    echo "${branch}"
+  }
 
 
   function __yxct_valid_repo()
@@ -917,6 +939,8 @@ function yxct_git_repo()
 
   function __yxct_clean_repo()
   {
+    local branch=$1
+
     # get repo status
     local git_status=
     if ! git_status=$(git -C "${repo_path}" status --porcelain=v1); then
@@ -928,9 +952,11 @@ function yxct_git_repo()
       yxct_msg "the repo is dirty, try recover..."
       
       # clean the repo
+      # yxct_verbcmd "git -C ${repo_path} reset --hard origin/main"
       yxct_verbcmd "git -C ${repo_path} reset --hard HEAD --"
       yxct_verbcmd "git -C ${repo_path} clean -fd"
-      
+
+
       # check clean result
       if ! git_status=$(git -C "${repo_path}" status --porcelain=v1); then
         yxct_fatal "failed to get git status after clean yxct repo"
@@ -939,11 +965,52 @@ function yxct_git_repo()
         yxct_fatal "failed to clean ${CMD} repo"
       fi
     fi
+
+
+    # make sure the right branch.
+    # 如果 current_branch 为 nil, 说明时分离状态
+    local current_branch=$(git -C "${repo_path}" branch --show-current)
+    if [ -n "${branch}" ]; then
+      # 如果给定新分支，切换到新分支
+      if [ -z "${current_branch}" ]  ||  [[ "${branch}" != 'current_branch' ]]; then
+        yxct_verbcmd "git -C ${repo_path} checkout ${branch}"
+      fi
+    else
+      # 如果没有给定新分支，但当前分支是分离状态, 切换到默认分支
+      if [ -z "${current_branch}" ]; then
+        local default_branch=$(__yxct_default_branch)
+        if [ -n "${default_branch}" ]; then
+          yxct_verbcmd "git -C ${repo_path} checkout ${default_branch}"
+        fi
+      fi
+    fi
+
   }
 
   function __yxct_clone_new_repo()
   {
-    local git_addr=$1
+    local git_addr=
+    local git_branch=
+
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --addr )
+          shift
+          git_addr=$1
+        ;;
+
+        --branch )
+          shift
+          git_branch=$1
+        ;;
+
+        *)
+          yxct_fatal "invalid optional:${1}"
+      esac
+      shift
+    done
+
+    # local git_addr=$1
     if [ -z "${git_addr}" ]; then
       yxct_fatal "git addr is empty"
     fi
@@ -962,7 +1029,11 @@ function yxct_git_repo()
     fi
 
     # clone a new repo
-    if ! yxct_verbcmd "git clone ${git_addr} ${repo_path}"; then
+    local branch_params=
+    if [ -n "${git_branch}" ]; then
+      branch_params="--branch ${git_branch}"
+    fi
+    if ! yxct_verbcmd "git clone ${branch_params} ${git_addr} ${repo_path}"; then
       yxct_fatal "failed to clone a new repo."
     fi
   }
@@ -973,13 +1044,36 @@ function yxct_git_repo()
 
     yxct_msg "check local git repo directory..."
     if __yxct_valid_repo "${git_address}"; then
+
+      # git fetch
+      yxct_msg "check update info..."
+      yxct_verbcmd "git -C ${repo_path} fetch"
+
       # clean the repo
       yxct_msg "clean local repo directory..."
-      __yxct_clean_repo
+      __yxct_clean_repo "${git_branch}"
+
+      # git pull
+      local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
+      local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+        yxct_msg "begin update..."
+        #pull the repo
+        if ! yxct_verbcmd "git -C ${repo_path} pull"; then
+          yxct_fatal "failed to pull repo"
+        fi
+      fi
+
     else
       # clone a new repo
         yxct_msg "clone a new repo..."
-      __yxct_clone_new_repo "${git_address}"
+
+      local branch_params=
+      if [ -n "${git_branch}" ]; then
+        branch_params="--branch ${git_branch}"
+      fi
+        
+      __yxct_clone_new_repo --addr "${git_address}" ${branch_params}
     fi
 
     # checkout the repo on specific git-hash.
@@ -1008,7 +1102,7 @@ function yxct_git_repo()
       if [[ "${git_head}" != "${git_fetch_head}" ]]; then
 
         # clean the repo
-        __yxct_clean_repo
+        __yxct_clean_repo "${git_branch}"
 
         yxct_msg "begin update..."
         #pull the repo
@@ -1025,7 +1119,11 @@ function yxct_git_repo()
     else
       # clone a new repo
       yxct_msg "clone a new repo..."
-      if ! __yxct_clone_new_repo "${git_address}"; then
+      local branch_params=
+      if [ -n "${git_branch}" ]; then
+        branch_params="--branch ${git_branch}"
+      fi
+      if ! __yxct_clone_new_repo --addr "${git_address}" ${branch_params}; then
         yxct_fatal "failed to clone new repo"
       fi
       result=0
@@ -1055,6 +1153,18 @@ function yxct_git_repo()
         local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
         if [ -n "${git_head}" ]; then
           echo "${git_head}"
+          result=0
+        else
+          result=1
+        fi
+      else
+        result=1
+      fi
+    elif [[ "${info}" == '--branch' ]]; then
+      if __yxct_valid_repo; then
+        local current_branch=$(git -C "${repo_path}" branch --show-current)
+        if [ -n "${current_branch}" ]; then
+          echo "${current_branch}"
           result=0
         else
           result=1
@@ -2284,6 +2394,12 @@ function update_index_if_need()
       git_addr="${YXCT_INDEX_DEFAULT_GIT_ADDR}"
     fi
 
+    # git branch
+    local git_branch=$(cmd_config read --key index.branch)
+    if [ -z "${git_branch}" ]; then
+      git_branch="${YXCT_INDEX_DEFAULT_GIT_BRANCH}"
+    fi
+
     # repo dir
     local repo=$(yxct_get_cmd_item --index-repo)
     if [ -z "${repo}" ]; then
@@ -2292,7 +2408,7 @@ function update_index_if_need()
 
     # update index repo
     yxct_msg "try update indexs library ..."
-    yxct_git_repo update --repo "${repo}" --addr "${git_addr}"
+    yxct_git_repo update --repo "${repo}" --addr "${git_addr}" --branch "${git_branch}"
     local result=$?
     if [[ "${result}" == '0' ]]; then
       date '+%s' > "${last_timestamp_file}"
@@ -2404,6 +2520,7 @@ function checkout_a_cache()
     yxct_fatal "failed to find a git address from the index config file of '${command}' command."
   fi
 
+
   # get git repo path
   local repo="${cache_path%\/}/${command}"
 
@@ -2412,7 +2529,14 @@ function checkout_a_cache()
   yxct_msg "prepare ${command} cache ..."
   if [ -n "${version}" ]  &&  yxct_strcontains "${version}" "head" --ignorecase; then
 
-    yxct_git_repo update --repo "${repo}" --addr "${gitaddr}"
+    # 如果要checkout HEAD, 必须提供 branch name
+    local gitbranch=$(search_in_index "${command}" --key 'branch')
+    if [ -z "${gitbranch}" ]; then
+      yxct_fatal "checkout to HEAD, but branch name is missed in index config"
+    fi
+
+
+    yxct_git_repo update --repo "${repo}" --addr "${gitaddr}" --branch "${gitbranch}"
     result=$?
 
     if [[ "${result}" == '0' ]]; then
@@ -2444,6 +2568,7 @@ function checkout_a_cache()
 
     fi
 
+    # 这里要check-out 指定hash, 不需要branch 名字
     yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
     result=$?
     if [[ "${result}" == '0' ]]; then 
@@ -3610,7 +3735,7 @@ function cmd_update()
 
 
     yxct_msg "begin update ${CMD}..."
-    yxct_git_repo update --repo "${repo}"
+    yxct_git_repo update --repo "${repo}" --branch 'main'
     local result=$?
     if [[ "${result}" == '0' ]]; then
       yxct_msg "done"
