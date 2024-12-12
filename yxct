@@ -2341,7 +2341,7 @@ function update_index_if_need()
     if ${should_update}; then
       local update=$(cmd_config read --key index.update)
       if [ -n "${update}" ]; then
-        if yxct_strcontains "${update}" "no 0 false" --ignorecase; then
+        if yxct_strcontains "${update}" "no n 0 false f" --ignorecase; then
           should_update=false
         fi
       fi
