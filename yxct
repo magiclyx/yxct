@@ -505,9 +505,9 @@ function yxct_strvercmp_zsh()
 		fi
 		
 		
-		if ((${ver1_num} > ${ver2_num})); then
+		if [[ "${ver1_num}" > "${ver2_num}" ]]; then
 			return 1
-		elif ((${ver1_num} < ${ver2_num})); then
+		elif [[ "${ver1_num}" < "${ver2_num}" ]]; then
 			return 2
 		fi
 		
@@ -552,9 +552,9 @@ function yxct_strvercmp_bash () {
 			ver2_num=`yxct_math_short ${ver2_num}`
 		fi
 		
-		if [ ${ver1_num} -gt ${ver2_num} ]; then
+		if [[ "${ver1_num}" > "${ver2_num}" ]]; then
 			return 1
-		elif [ ${ver1_num} -lt ${ver2_num} ]; then
+		elif [[ "${ver1_num}" < "${ver2_num}" ]]; then
 			return 2
 		fi
 
