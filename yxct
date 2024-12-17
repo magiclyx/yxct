@@ -75,44 +75,44 @@ fi
 
 IGNORE_LIST=(
   # git
-  "\.gitignore"
-  "\.git"
-  "\.gitkeep"
+  "^\.gitignore$"
+  "^\.git$"
+  "^\.gitkeep$"
   
   ################
   #vim
   # # vim->swap
-  "[._]*\.s[a-v][a-z]"
-  "[._]*.sw[a-p]"
-  "[._]s[a-rt-v][a-z]"
-  "[._]ss[a-gi-z]"
-  "[._]sw[a-p]"
+  "^[._]*\.s[a-v][a-z]$"
+  "^[._]*.sw[a-p]$"
+  "^[._]s[a-rt-v][a-z]$"
+  "^[._]ss[a-gi-z]$"
+  "^[._]sw[a-p]$"
   # # vim->session
-  "Session"
-  "Sessionx"
+  "^Session$"
+  "^Sessionx$"
   # # vim->Temporary
-  "\.netrwhist"
-  "\*~"
+  "^\.netrwhist$"
+  "^\*~$"
   # # vim->Auto-generated tag files
-  "tags"
+  "^tags$"
   # # vim->Persistent undo
-  "[._]*.un~"
+  "^[._]*.un~$"
   
   ################
   #vscode
-  "\.vscode"
+  "^\.vscode$"
   # # vscode->Local History for Visual Studio Code
-  "\.history"
+  "^\.history$"
   # # vscode->Built Visual Studio Code Extensions
-  ".*\.vsix"
+  "^.*\.vsix$"
   # # vscode->VisualStudioCode Patch
-  "\.history"
-  "\.ionide"
+  "^\.history$"
+  "^\.ionide$"
   
   # custom
-  "README(\.md)?"
-  "test(\.sh)?"
-  "sample(\.sh)?"
+  "^README(\.md)?$"
+  "^test(\.sh)?$"
+  "^sample(\.sh)?$"
 )
 
 
