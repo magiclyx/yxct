@@ -1539,6 +1539,9 @@ function setup_cellar()
   elif yxct_strcontains "$1" "uninstall" --ignorecase; then
     option='UNINSTALL'
     shift
+  elif yxct_strcontains "$1" "upgrade" --ignorecase; then
+    option='UPGRADE'
+    shift
   else
     yxct_fatal "unknown option in setup cellar"
   fi
@@ -1663,8 +1666,8 @@ function setup_cellar()
     # write version
     if [ -n "${version}" ]; then
 
-      if yxct_strcontains "${version}" "head" --ignorecase; then
-        : # version 是 head 时， 不记录
+      if yxct_strcontains "${version}" "head current" --ignorecase; then
+        : # version 是 head 和 current 时， 不记录
       elif yxct_strcontains "${version}" "latest" --ignorecase; then
         # version 是 latest时，通过index.conf获取真正的版本号
         version=$(search_in_index "${command}" --key 'latest')
@@ -1686,6 +1689,89 @@ function setup_cellar()
     if [ -d "${cellar_path}" ]; then
       yxct_verbcmd "${RM} -rf ${cellar_path}"
     fi
+  elif [[ "${option}" == 'UPGRADE' ]]; then
+
+    # create cellar dir
+    if [ -d "${cellar_path}" ]; then
+      if ! yxct_verbcmd "${RM} -rf ${cellar_path}"; then
+        yxct_fatal "failed to remove old cellar dir:${cellar_path}"
+      fi
+    fi
+
+    if ! yxct_verbcmd "${MKDIR} -p ${cellar_path}"; then
+      yxct_fatal "failed to create dir:${cellar_path}"
+    fi
+
+    # copy file
+    if [ -n "${install_script}" ]; then
+      if [ -f "${install_script}" ]; then
+        yxct_verbcmd "${CP} ${install_script} ${cellar_path}"
+      else
+        yxct_fatal "can not find a install script on setup cellar"
+      fi
+    fi
+
+    # write information to info file
+
+    # write file hash
+    local info_file="${cellar_path}/info"
+    if [ -n "${install_file}" ]; then
+      if [ -f "${install_file}" ]; then
+        local install_file_hash=$(shasum -a 256 "${install_file}" | awk '{print $1}')
+        if [ -n "${install_file_hash}" ]; then
+          yxct_config_write --file "${info_file}" --key "filehash" --val "${install_file_hash}"
+        else
+          yxct_fatal "failed to calculate the hash value on install file:${install_file}"
+        fi
+      else
+        yxct_fatal "can not find a install file on setup cellar"
+      fi
+    fi
+
+
+    local git_hash=
+    local git_addr=
+    if [ -n "${cache_dir}" ]; then
+      local command_repo="${cache_dir%\/}/${command}"
+      if [ -d "${command_repo}" ]; then
+
+        # write git hash
+        git_hash=$(yxct_git_repo info --repo "${command_repo}" --head)
+        if [ -n "${git_hash}" ]; then
+          yxct_config_write --file "${info_file}" --key "githash" --val "${git_hash}"
+        fi
+
+        # write git addr
+        git_addr=$(yxct_git_repo info --repo "${command_repo}" --addr)
+        if [ -n "${git_addr}" ]; then
+          yxct_config_write --file "${info_file}" --key "gitaddr" --val "${git_addr}"
+        fi
+
+      fi
+    fi
+
+    # write version
+    if [ -n "${version}" ]; then
+
+      if yxct_strcontains "${version}" "head current" --ignorecase; then
+        : # version 是 head 时， 不记录
+      elif yxct_strcontains "${version}" "latest" --ignorecase; then
+        # version 是 latest时，通过index.conf获取真正的版本号
+        version=$(search_in_index "${command}" --key 'latest')
+        if [ -n "${version}" ]; then
+          yxct_config_write --file "${info_file}" --key "version" --val "${version}"
+        fi
+      else
+        yxct_config_write --file "${info_file}" --key "version" --val "${version}"
+      fi
+
+    fi
+
+    # bin-path
+    if [ -n "${bin_path}" ]; then
+      yxct_config_write --file "${info_file}" --key "dest" --val "${bin_path}"
+    fi
+
   else
     yxct_fatal "unknown option:${option}"
   fi
