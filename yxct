@@ -2452,6 +2452,7 @@ function uninstall_by_bin_path()
 
 function search_in_index()
 {
+  local index_config=
   local command=
   local key=
   local all_version=false
@@ -2470,23 +2471,32 @@ function search_in_index()
         key=$1
       ;;
 
+      --index )
+        shift
+        index_config=$1
+      ;;
+
       --all-version )
         all_version=true
       ;;
 
       *)
-        yxct_fatal "Invalid params:${$1}"
+        yxct_fatal "Invalid params:$1"
     esac
     shift
   done
 
-  local index_repo=$(yxct_get_cmd_item --index-repo)
-  if [ -z "${index_repo}" ]; then
-    yxct_fatal "failed to get index repo path"
+  if [ -z "${index_config}" ]; then
+
+    local index_repo=$(yxct_get_cmd_item --index-repo)
+    if [ -z "${index_repo}" ]; then
+      yxct_fatal "failed to get index repo path"
+    fi
+
+    # repo dir
+    index_config="${index_repo%\/}/index/${command}.conf"
   fi
 
-  # repo dir
-  local index_config="${index_repo%\/}/index/${command}.conf"
   if [ -f "${index_config}" ]; then
 
     if ${all_version}; then
@@ -2499,7 +2509,6 @@ function search_in_index()
     else
       yxct_config_read --file "${index_config}" --key "${key}"
     fi
-
   fi
 }
 
