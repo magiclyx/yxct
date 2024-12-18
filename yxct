@@ -941,6 +941,9 @@ function yxct_git_repo()
   local git_hash=
   local git_branch=
 
+  local file=
+  local work_tree=
+
   #operation 为 info 时使用
   local info=
 
@@ -985,6 +988,16 @@ function yxct_git_repo()
       --branch )
         cursor=$1
         info=$1
+      ;;
+
+      --file )
+        shift
+        file=$1
+      ;;
+
+      --work-tree )
+        shift
+        work_tree=$1
       ;;
 
       --head )
@@ -1194,35 +1207,75 @@ function yxct_git_repo()
       yxct_msg "clean local repo directory..."
       __yxct_clean_repo "${git_branch}"
 
-      # git pull
-      local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
-      local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
-      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
-        yxct_msg "begin update..."
-        #pull the repo
-        if ! yxct_verbcmd "git -C ${repo_path} pull"; then
-          yxct_fatal "failed to pull repo"
+
+      # 如果存在fetch_address, 则尝试更新仓库
+      local real_addr=$(yxct_git_repo info --repo "${repo_path}" --addr)
+      if [ -n "${real_addr}" ]; then
+
+        # git pull
+        local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
+        local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+        if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+          yxct_msg "begin update..."
+          #pull the repo
+          if ! yxct_verbcmd "git -C ${repo_path} pull"; then
+            yxct_fatal "failed to pull repo"
+          fi
         fi
+
       fi
 
     else
-      # clone a new repo
-        yxct_msg "clone a new repo..."
+      if [ -n "${git_address}" ]; then
+        # clone a new repo
+          yxct_msg "clone a new repo..."
 
-      local branch_params=
-      if [ -n "${git_branch}" ]; then
-        branch_params="--branch ${git_branch}"
+        local branch_params=
+        if [ -n "${git_branch}" ]; then
+          branch_params="--branch ${git_branch}"
+        fi
+          
+        __yxct_clone_new_repo --addr "${git_address}" ${branch_params}
+      else
+        yxct_fatal "git address is empty, can not clonew a new repo"
       fi
-        
-      __yxct_clone_new_repo --addr "${git_address}" ${branch_params}
     fi
 
     # checkout the repo on specific git-hash.
     local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
     if [[ "${git_head}" != "${git_hash}" ]]; then
       yxct_msg "checkout repo HEAD to ${git_hash}..."
-      if ! yxct_verbcmd "git -C ${repo_path} checkout ${git_hash}"; then 
-        yxct_fatal "failed to checkout the repo on:${git_hash}"
+
+      work_tree_params=
+      if [ -n "${work_tree}" ]; then
+        work_tree_params="--work-tree ${work_tree}"
+      fi
+
+      file_params=
+      if [ -n "${file}" ]; then
+        file_params="-- ${file}"
+      fi
+
+      if [ -n "${git_hash}" ]; then
+        # 修改 暂时没有其他办法，只能修改 advice.detachedHead config,
+        local ori_detachedHead=$(git -C "${repo_path}" config advice.detachedHead)
+        yxct_verbcmd "git -C ${repo_path} config advice.detachedHead false"
+        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_hash} ${file_params}"
+        result=$?
+        if [ -n "${ori_detachedHead}" ]; then
+          if [[ "${ori_detachedHead}" != 'false' ]]; then
+            yxct_verbcmd "git -C ${repo_path} config advice.detachedHead ${ori_detachedHead}"
+          fi
+        else
+            yxct_verbcmd "git -C ${repo_path} config --unset advice.detachedHead"
+        fi
+        if [[ "${result}" != '0' ]]; then 
+          yxct_fatal "failed to checkout the repo to:${git_hash}"
+        fi
+      elif [ -n "${git_branch}" ]; then
+        if ! yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}"; then 
+          yxct_fatal "failed to checkout the repo to:${git_branch}"
+        fi
       fi
     fi
 
@@ -1258,16 +1311,21 @@ function yxct_git_repo()
       fi
 
     else
-      # clone a new repo
-      yxct_msg "clone a new repo..."
-      local branch_params=
-      if [ -n "${git_branch}" ]; then
-        branch_params="--branch ${git_branch}"
+      if [ -n "${git_address}" ]; then
+        # clone a new repo
+        yxct_msg "clone a new repo..."
+        local branch_params=
+        if [ -n "${git_branch}" ]; then
+          branch_params="--branch ${git_branch}"
+        fi
+        if ! __yxct_clone_new_repo --addr "${git_address}" ${branch_params}; then
+          yxct_fatal "failed to clone new repo"
+        fi
+        result=0
+      else
+        result=1
+        yxct_fatal "git address is empty, can not clone a new repo"
       fi
-      if ! __yxct_clone_new_repo --addr "${git_address}" ${branch_params}; then
-        yxct_fatal "failed to clone new repo"
-      fi
-      result=0
     fi
 
   elif [[ "${operation}" == 'INFO' ]]; then
