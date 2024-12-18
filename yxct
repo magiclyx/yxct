@@ -386,6 +386,28 @@ function yxct_shell_type()
   echo "${shell_type}"
 }
 
+# usage yxct_is_subpath <path> <sub_path>
+function yxct_is_subpath()
+{
+	local path=$1
+	local sub_path=$2
+	
+	if [ -z "${path}" ]; then
+		yxct_fatal "path is empty"
+	fi
+	
+	if [ -z "${sub_path}" ]; then
+		yxct_fatal "sub-path is empty"
+	fi
+	
+	
+	if [[ "${sub_path##${path}}" != "${sub_path}" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 function yxct_datastr_to_second()
 {
 	local -A REG_MAP
