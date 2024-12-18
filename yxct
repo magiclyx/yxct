@@ -3442,7 +3442,7 @@ function cmd_install()
 
       # 如果没指定 --cache 参数， 那么准备好 cache
       if ! ${use_cache}; then
-        # update index
+        # update indexs library
         if ! update_index_if_need; then
           yxct_fatal "failed to update index"
         fi
@@ -3622,7 +3622,7 @@ function cmd_install()
                   setup_cache_params="--cache-dir ${cache_path}"
                 fi
 
-                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+                setup_cellar install "${command}" --install-file "${app_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
@@ -3635,7 +3635,7 @@ function cmd_install()
                   setup_cache_params="--cache-dir ${cache_path}"
                 fi
 
-                setup_cellar install "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+                setup_cellar install "${command}" --install-file "${app_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
               else
                 yxct_fatal "failed on install ${command}"
               fi
