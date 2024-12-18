@@ -1998,6 +1998,9 @@ function run_setup_script()
   elif yxct_strcontains "${option}" 'uninstall' --ignorecase; then
     option="uninstall"
     shift
+  elif yxct_strcontains "${option}" 'upgrade' --ignorecase; then
+    option="upgrade"
+    shift
   else
     yxct_fatal "option is empty."
   fi
