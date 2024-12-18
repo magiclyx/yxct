@@ -4510,7 +4510,7 @@ function cmd_pack()
             if [[ "${pass1}" == "${pass2}" ]]; then
               pass="${pass1}"
             else
-              echo_fatal "Password not matched"
+              yxct_fatal "Password not matched"
             fi
           fi
         fi
