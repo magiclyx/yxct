@@ -4653,7 +4653,7 @@ function cmd_pack()
         params="${params} -R"
       fi
 
-      if ! yxct_verbcmd "${CP} ${params} ${target_path%\/}/${repo_name} ${repo_path}"; then
+      if ! yxct_verbcmd "${CP} ${params} ${target_path} ${repo_path}"; then
         yxct_fatal "failed to copy file to ${pack_file}"
       else
         if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
@@ -4679,7 +4679,7 @@ function cmd_search()
 
   local use_reg=false
   local search_string=
-  if [ -n $1 ] && ! [[ $1 =~ ^-.*$ ]]; then
+  if [[ -n $1 ]] && ! [[ $1 =~ ^-.*$ ]]; then
     search_string=$1
     shift
   else
