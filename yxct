@@ -2833,29 +2833,58 @@ function checkout_a_cache()
   fi
 
 
-  # get git address
-  local gitaddr=$(search_in_index "${command}" --key 'repo')
-  if [ -z "${gitaddr}" ]; then
-    yxct_fatal "failed to find a git address from the index config file of '${command}' command."
-  fi
-
-
   # get git repo path
   local repo="${cache_path%\/}/${command}"
 
+  # get git address
+  # indexs library 必须存在 gitaddr
+  # 这里用gitaddr来判断 indexs library 配置是否有效
+  local index_params=
+  local gitaddr=$(search_in_index "${command}" --key 'repo')
+  if [ -z "${gitaddr}" ]; then
+    
+    # 如果在indexs library 中，没有搜索到命令，
+    # 查看缓存目录, 如果缓存目录存在，且在目录中找到了'.yxct.index.conf'
+    # 那么使用这个文件当作index文件, 而不是indexs library 中的indexs
+    local index_path="${repo}/.yxct.index.conf"
+    if [ -f "${index_path}" ]; then
+
+      # 只要本地.yxct.index.conf 存在，替换默认 indexs library 配置文件
+      index_params="--index ${index_path}"
+
+      # 本地仓库，可能没有 gitaddr, 这里和 indexs library 处理不一样
+      gitaddr=$(search_in_index "${command}" --key 'repo' --index "${index_path}")
+
+    else
+      # 命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件
+      # 则不对仓库做任何操作。 即使它是git, 即使git仓库有更改
+      return 1
+    fi
+
+  fi
+
+
+
   # checkout the version
+
+  local addr_params=
+  if [ -n "${gitaddr}" ]; then
+    addr_params="--addr ${gitaddr}"
+  fi
+
+
   local result=
   yxct_msg "prepare ${command} cache ..."
   if [ -n "${version}" ]  &&  yxct_strcontains "${version}" "head" --ignorecase; then
 
     # 如果要checkout HEAD, 必须提供 branch name
-    local gitbranch=$(search_in_index "${command}" --key 'branch')
+    local gitbranch=$(search_in_index "${command}" --key 'branch' ${index_params})
     if [ -z "${gitbranch}" ]; then
       yxct_fatal "checkout to HEAD, but branch name is missed in index config"
     fi
 
 
-    yxct_git_repo update --repo "${repo}" --addr "${gitaddr}" --branch "${gitbranch}"
+    yxct_git_repo update --repo "${repo}" ${addr_params} --branch "${gitbranch}"
     result=$?
 
     if [[ "${result}" == '0' ]]; then
@@ -2867,20 +2896,22 @@ function checkout_a_cache()
       yxct_fatal "failed to prepared cache"
     fi
 
+  elif [ -z "${version}" ]  ||  yxct_strcontains "${version}" "current" --ignorecase; then
+    result=0
   else
 
     if [ -z "${githash}" ]; then
 
       # get the version if --version params not provide
       if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
-        version=$(search_in_index "${command}" --key 'latest')
+        version=$(search_in_index "${command}" --key 'latest' ${index_params})
         if [ -z "${version}" ]; then
           yxct_fatal "failed to get latest version:${version} of command:${command}"
         fi
       fi
 
       # get git-has with the 'version'
-      githash=$(search_in_index "${command}" --key "${version}")
+      githash=$(search_in_index "${command}" --key "${version}" ${index_params})
       if [ -z "${githash}" ]; then
         yxct_fatal "unknown version:${version} of command:${command}"
       fi
@@ -2888,7 +2919,7 @@ function checkout_a_cache()
     fi
 
     # 这里要check-out 指定hash, 不需要branch 名字
-    yxct_git_repo checkout "${githash}" --repo "${repo}" --addr "${gitaddr}"
+    yxct_git_repo checkout "${githash}" --repo "${repo}" ${addr_params}
     result=$?
     if [[ "${result}" == '0' ]]; then 
       yxct_msg "${command} cached success checkout to ${githash}"
