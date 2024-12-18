@@ -4125,6 +4125,447 @@ function cmd_update()
 
 }
 
+function cmd_upgrade()
+{
+  local script_path=
+  local pass=
+  local -a ignore_reg_list=
+  local version=
+  local additional=
+
+  local use_cache=false
+  local cache_path=
+
+  local test=false
+
+  local info_level=
+  local no_depend=false
+  local show_help=false
+
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi
+
+  local is_in_ignore=false
+  while [ $# -gt 0 ]; do
+
+    if [[ $1 =~ ^--.*$ ]]; then
+      is_in_ignore=false
+    fi
+
+    case $1 in
+
+      --path )
+        shift
+        script_path=$1
+      ;;
+
+      --cache )
+        use_cache=true;
+        if ! [[ "$2" =~ ^-.*$ ]]; then
+          cache_path=$2
+          shift
+        fi
+      ;;
+
+      --pass )
+        shift
+        pass=$1
+      ;;
+
+      --version )
+        shift
+        version=$1
+      ;;
+
+      --ignore )
+        is_in_ignore=true
+        force=true
+      ;;
+
+      --no-depend )
+        no_depend=true
+      ;;
+
+      --info-level )
+        shift
+        info_level=$1
+      ;;
+
+      --test )
+        test=true;
+      ;;
+
+      --help | h )
+        show_help=true
+      ;;
+
+      *)
+        if ${is_in_ignore}; then
+          ignore_reg_list=("${ignore_reg_list[@]}" "${1}")
+        else
+          additional="${additional} $1"
+        fi
+      ;;
+    esac
+    shift
+  done
+
+  if ${show_help}; then
+    yxct_usage_uninstall
+    exit 0
+  else
+
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if ${test}; then
+      TEST_ONLY=true
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+    if [ -z "${command}" ]; then
+      yxct_fatal "Command is empty. Use --help to show more information."
+    fi
+    # 如果操作的是'yxlib', 强制关闭 'YXCT_USEYXLIB'
+    # 为了保证输出正常，这个只能放在 'info_level' 之后
+    if yxct_strcontains "${command}" "yxlib" --ignorecase; then
+      export YXCT_USEYXLIB=false
+    fi
+
+
+    local cmd_cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
+    if ! [ -d "${cmd_cellar_path}" ]; then
+      yxct_fatal "${command} not install"
+    fi
+
+
+
+#     # get git address
+#     local gitaddr=$(search_in_index "${command}" --key 'repo')
+#     if [ -z "${gitaddr}" ]; then
+#       yxct_fatal "can not find command '${command}' in indexs library. \
+# Use '${CMD} update' to update indexs library, or use '${CMD} reinstall --path <path>' \
+# to reinstall the command from a specific source. Use '${CMD} --help' to show more information."
+#     fi
+
+
+    if [ -z "${version}" ]; then
+      if [ -n "${script_path}" ]; then
+        version='CURRENT'
+      else
+        version='LATEST'
+      fi
+    fi
+    # 如果version不是 latest 和 head, 则默认version为版本号。
+    # 这里需要对比版本号
+    if ! yxct_strcontains "${version}" "latest head current" --ignorecase; then
+
+        # 如果本地不存在版本号，则不用验证
+        local installed_version=$(yxct_get_cellar_item "${command}" --command-version)
+        if [ -n "${installed_version}" ]; then
+          yxct_strvercmp "${version}" "${installed_version}"
+          local compare_result=$?
+          if [[ "${compare_result}" == '0' ]]; then
+            yxct_fatal "version '${version}' is equal to current version:${installed_version}"
+          elif [[ "${compare_result}" == '2' ]]; then
+            yxct_fatal "version '${version}' is less than current version:${installed_version}"
+          fi
+        fi
+
+    fi
+
+
+    # get bin-path
+    local bin_path=$(yxct_get_cellar_item "${command}" --bin-path)
+    if [ -z "${bin_path}" ]; then
+      yxct_fatal "failed to get dest paths"
+    fi
+
+
+
+
+    # get a valid cache path
+    # 如果 '--cache' 参数未提供 path
+    if [ -z "${cache_path}" ]; then
+      
+      # 获取cache, cache 路径可以为空或不存在
+      # 因为后面 如果未指定'--cache'参数，可以从网络拉取
+      if [ -n "${YXCT_CACHE_PATH}" ]; then
+        # 如果提供了环境变量， 从环境变量中读取 cache 路径
+        cache_path="${YXCT_CACHE_PATH}"
+      else
+        # 如果没提供环境变量，使用默认cache路径
+        cache_path="$(yxct_get_default_cache_path)"
+      fi
+
+    fi
+
+
+
+    # 如果提供了 script_path, 且script 不在cache目录
+    # 这里会将 script_path 拷贝到 cache 目录。 
+    # 如果cache目录已经存在command, 则覆盖之前的.
+    if [ -n "${script_path}" ]  &&  ! yxct_is_subpath "${cache_path}" "${script_path}"; then
+
+
+      if [ -d "${script_path}" ]; then
+      # 如果 script_path 是一个目录
+
+        local install_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
+        local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+        if [ -n "${install_script_filename}" ]  ||  [ -n "${singl_app_name}" ]; then
+        # 如果找到安装脚本 或是单脚本命令, 需要将目录拷贝到cache 目录
+
+          # 存在的话， 先删除
+          local cmd_cache_path="${cache_path}/${command}"
+          if [ -e "${cmd_cache_path}" ]; then
+            yxct_verbcmd "${RM} -rf ${cmd_cache_path}"
+          fi
+          # 再创建
+          yxct_verbcmd "${MKDIR} -p ${cmd_cache_path}"
+          if ! [ -d "${cmd_cache_path}" ]; then
+            yxct_fatal "failed to create dir:${cmd_cache_path}"
+          fi
+          # copy
+          if ! yxct_verbcmd "${CP} -R ${script_path}/ ${cmd_cache_path}"; then
+            yxct_fatal "failed to copy script dir to cache path"
+          fi
+
+          # 新的 script_path
+          script_path="${cmd_cache_path}"
+
+        else
+          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
+          yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+        fi
+
+      elif [ -f "${script_path}" ]; then
+
+        # 存在的话， 先删除
+        local cmd_cache_path="${cache_path}/${command}"
+        if [ -e "${cmd_cache_path}" ]; then
+          yxct_verbcmd "${RM} -rf ${cmd_cache_path}"
+        fi
+        # 再创建
+        yxct_verbcmd "${MKDIR} -p ${cmd_cache_path}"
+        if ! [ -d "${cmd_cache_path}" ]; then
+          yxct_fatal "failed to create dir:${cmd_cache_path}"
+        fi
+        # copy
+        if ! yxct_verbcmd "${CP} ${script_path} ${cmd_cache_path}"; then
+          yxct_fatal "failed to copy command to cache path"
+        fi
+
+        # 新的 script_path
+        script_path="${cmd_cache_path}"
+
+      else
+        # 既不是文件，也不是目录，无效script_path
+        yxct_fatal "Invalid script path:${script_path}"
+      fi
+
+    fi
+
+
+    # 如果安装包是yxct格式，需要解压一次
+    local single_file_name=$(file_name_if_single "${script_path}")
+    if [ -n "${single_file_name}" ]; then
+
+      single_file_path="${script_path%\/}/${single_file_name}"
+      if [ -n "${single_file_path}" ]; then
+
+        # 这里通过扩展名，判断文件是否是一个 package
+        local package_name=$(basename "${single_file_path}")
+        if [[ "${package_name##*.}" == 'yxct' ]]; then
+
+          local tmp_path=$(mktemp -d)
+          if [ ! -d "${tmp_path}" ]; then
+            yxct_fatal "Failed to create a temp directory"
+          fi
+
+          # 释放package里的内容
+          local pass_params=
+          if [ -n "${pass}" ]; then
+            pass_params="--pass ${pass}"
+          fi
+
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+          if ! cmd_pack unpack --pack-path "${single_file_path}" --repo-path "${tmp_path}" --force ${pass_params}; then
+            yxct_fatal "failed to unpack pakcage:${package}"
+          fi
+          YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+          # 更新script_path路径
+          script_path="${tmp_path%\/}/${package_name%.*}"
+          # 更新cache_path路径
+          cache_path="${tmp_path}"
+
+        fi # end of (if [[ "${package_name##*.}" == 'yxct' ]]; then)
+
+      fi # end of (if [ -n "${single_file_path}" ]; then)
+
+    fi # end of (if [ -n "${single_file_name}" ]; then)
+
+
+
+    if ! ${use_cache}; then
+      # update indexs library
+      if ! update_index_if_need; then
+        yxct_fatal "failed to update index"
+      fi
+
+      # 如果命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件, 这个函数会返回'1'
+      # 如果更新失败，会直接fatal.
+      checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+    fi
+
+
+
+
+
+
+
+
+    local params=''
+    # --command
+    if [ -n "${command}" ]; then
+      params="${params} --command ${command}"
+    fi
+    
+    # --bin-path
+    if [ -n "${bin_path}" ]; then
+      params="${params} --bin-path ${bin_path}"
+    fi
+
+
+
+    if [ -f "${script_path}" ]; then
+    # 如果脚本路径是一个文件
+
+      local script_file_name=$(basename ${script_path})
+      if echo "${script_file_name}" | grep -Eq "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$"; then
+      # 如果文件是一个安装脚本, 直接调用脚本
+        if run_setup_script upgrade --path "${script_path}" ${params} ${additional}; then
+          
+          local setup_cache_params=
+          if [ -n "${cache_path}" ]; then
+            setup_cache_params="--cache-dir ${cache_path}"
+          fi
+
+          setup_cellar upgrade "${command}" --install-script "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+        else
+          yxct_fatal "failed on install ${command}"
+        fi
+      else
+      # 如果文件是不是一个安装脚本
+
+
+        if [[ "${script_file_name}" == "${command}" ]] ||  [[ "${script_file_name%.*}" == "${command}" ]]; then
+        # 如果'--path'指向的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+          if install_file --file "${script_path}" --force ${params}; then
+            
+            local setup_cache_params=
+            if [ -n "${cache_path}" ]; then
+              setup_cache_params="--cache-dir ${cache_path}"
+            fi
+            
+            setup_cellar upgrade "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+          else
+            yxct_fatal "failed on install ${command}"
+          fi
+        else
+        # '--path'指向文件名与'command'不同的情况下，验证是否指定了 ‘--strict’ 参数. 没指定则强制安装文件, 并改名为command.
+          if install_file --file "${script_path}" --force ${params}; then
+
+            local setup_cache_params=
+            if [ -n "${cache_path}" ]; then
+              setup_cache_params="--cache-dir ${cache_path}"
+            fi
+
+            setup_cellar upgrade "${command}" --install-file "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+          else
+            yxct_fatal "failed on install ${command}"
+          fi
+        fi
+
+      fi
+    elif [ -d "${script_path}" ]; then
+      # 如果脚本路径是一个目录
+      local install_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
+      if [ -n "${install_script_filename}" ]; then
+        # 如果目录中找到安装脚本, 直接掉用那个安装脚本
+        local script_path="${script_path%\/}/${install_script_filename}"
+        if run_setup_script upgrade --path "${script_path}" ${params} ${additional}; then
+          
+          local setup_cache_params=
+          if [ -n "${cache_path}" ]; then
+            setup_cache_params="--cache-dir ${cache_path}"
+          fi
+
+          setup_cellar upgrade "${command}" --install-script "${script_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+        else
+          yxct_fatal "failed on install ${command}"
+        fi
+      else
+
+        local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+        if [ -n "${singl_app_name}" ]; then
+        # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，只剩下一个文件
+
+          local app_path="${script_path%\/}/${singl_app_name}"
+          if [[ "${singl_app_name}" == "${command}" ]] ||  [[ "${singl_app_name%.*}" == "${command}" ]]; then
+          # 如果这唯一的文件与要安装的'command'名字相同(或去掉扩展名后相同), 则安装文件
+            if install_file --file "${app_path}" --force ${params}; then
+
+              local setup_cache_params=
+              if [ -n "${cache_path}" ]; then
+                setup_cache_params="--cache-dir ${cache_path}"
+              fi
+
+              setup_cellar upgrade "${command}" --install-file "${app_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+            else
+              yxct_fatal "failed on install ${command}"
+            fi
+          else
+          # 这唯一的文件与'command'名字不同的情况下，没指定则强制安装文件, 并改名为command.
+            if install_file --file "${app_path}" --force ${params}; then
+
+              local setup_cache_params=
+              if [ -n "${cache_path}" ]; then
+                setup_cache_params="--cache-dir ${cache_path}"
+              fi
+
+              setup_cellar upgrade "${command}" --install-file "${app_path}" --version "${version}" --bin-path "${bin_path}" ${setup_cache_params}
+            else
+              yxct_fatal "failed on install ${command}"
+            fi
+          fi
+        else
+          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
+          yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
+        fi
+
+      fi
+    else
+    # 既不是文件，也不是目录，无效script_path
+      yxct_fatal "Invalid script path:${script_path}"
+    fi
+
+
+  fi
+
+  if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
+    yxct_msg "${command} upgrade success."
+  fi
+}
+
 function cmd_reinstall()
 {
   local test=false
@@ -5275,6 +5716,8 @@ elif [[ "${sub_cmd}" == 'reinstall' ]]; then
   cmd_reinstall $@
 elif [[ "${sub_cmd}" == 'update' ]]; then
   cmd_update $@
+elif [[ "${sub_cmd}" == 'upgrade' ]]; then
+  cmd_upgrade $@
 elif [[ "${sub_cmd}" == 'search' ]]; then
   cmd_search $@
 elif [[ "${sub_cmd}" == 'info' ]]; then
