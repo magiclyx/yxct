@@ -976,8 +976,6 @@ function yxct_git_repo()
       if [ -n "$2" ] && [[ "$2" =~ ^[0-9a-zA-z]{7,40}$ ]]; then
         git_hash=$2
         shift
-      else
-        yxct_fatal "use 'checkout' but not provide a git-hash value"
       fi
     elif yxct_strcontains "$1" 'update' --ignorecase; then
       operation='UPDATE'
@@ -2860,46 +2858,42 @@ function checkout_a_cache()
   # get git repo path
   local repo="${cache_path%\/}/${command}"
 
-  # get git address
-  # indexs library 必须存在 gitaddr
-  # 这里用gitaddr来判断 indexs library 配置是否有效
   local index_params=
-  local gitaddr=$(search_in_index "${command}" --key 'repo')
-  if [ -z "${gitaddr}" ]; then
-    
-    # 如果在indexs library 中，没有搜索到命令，
-    # 查看缓存目录, 如果缓存目录存在，且在目录中找到了'.yxct.index.conf'
-    # 那么使用这个文件当作index文件, 而不是indexs library 中的indexs
-    local index_path="${repo}/.yxct.index.conf"
-    if [ -f "${index_path}" ]; then
-
-      # 只要本地.yxct.index.conf 存在，替换默认 indexs library 配置文件
-      index_params="--index ${index_path}"
-
-      # 本地仓库，可能没有 gitaddr, 这里和 indexs library 处理不一样
-      gitaddr=$(search_in_index "${command}" --key 'repo' --index "${index_path}")
-
-    else
-      # 命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件
-      # 则不对仓库做任何操作。 即使它是git, 即使git仓库有更改
-      return 1
-    fi
-
-  fi
-
-
-
-  # checkout the version
-
-  local addr_params=
-  if [ -n "${gitaddr}" ]; then
-    addr_params="--addr ${gitaddr}"
-  fi
-
-
   local result=
   yxct_msg "prepare ${command} cache ..."
   if [ -n "${version}" ]  &&  yxct_strcontains "${version}" "head" --ignorecase; then
+
+    yxct_msg "search ${command} from indexs library..."
+    local gitaddr=$(search_in_index "${command}" --key 'repo')
+    if [ -z "${gitaddr}" ]; then
+      
+      # 如果在indexs library 中，没有搜索到命令，
+      # 查看缓存目录, 如果缓存目录存在，且在目录中找到了'.yxct.index.conf'
+      # 那么使用这个文件当作index文件, 而不是indexs library 中的indexs
+      local index_path="${repo}/.yxct.index.conf"
+      if [ -f "${index_path}" ]; then
+
+        # 只要本地.yxct.index.conf 存在，替换默认 indexs library 配置文件
+        index_params="--index ${index_path}"
+
+        # 本地仓库，可能没有 gitaddr, 这里和 indexs library 处理不一样
+        gitaddr=$(search_in_index "${command}" --key 'repo' --index "${index_path}")
+
+      else
+        # 命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件
+        # 则不对仓库做任何操作。 即使它是git, 即使git仓库有更改
+        return 1
+      fi
+
+    fi
+
+
+    # checkout the version
+    if [ -n "${gitaddr}" ]; then
+      addr_params="--addr ${gitaddr}"
+    fi
+
+
 
     # 如果要checkout HEAD, 必须提供 branch name
     local gitbranch=$(search_in_index "${command}" --key 'branch' ${index_params})
@@ -2923,33 +2917,137 @@ function checkout_a_cache()
   elif [ -z "${version}" ]  ||  yxct_strcontains "${version}" "current" --ignorecase; then
     result=0
   else
+    
 
-    if [ -z "${githash}" ]; then
+    # local githash=
+    yxct_msg "search ${command} from indexs library..."
+    local gitaddr=$(search_in_index "${command}" --key 'repo')
+    # indexs library 必须存在 gitaddr
+    # 这里用gitaddr来判断 indexs library 配置是否有效
+    if [ -n "${gitaddr}" ]; then
 
-      # get the version if --version params not provide
-      if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
-        version=$(search_in_index "${command}" --key 'latest' ${index_params})
-        if [ -z "${version}" ]; then
-          yxct_fatal "failed to get latest version:${version} of command:${command}"
-        fi
-      fi
-
-      # get git-has with the 'version'
-      githash=$(search_in_index "${command}" --key "${version}" ${index_params})
+      # 从 indexs library 配置中，获取信息
       if [ -z "${githash}" ]; then
-        yxct_fatal "unknown version:${version} of command:${command}"
+        # get the version if --version params not provide
+        if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
+
+          version=$(search_in_index "${command}" --key 'latest')
+          if [ -z "${version}" ]; then
+            yxct_fatal "failed to get latest version:${version} of command:${command}"
+          fi
+
+          # get git-has with the 'version'
+          githash=$(search_in_index "${command}" --key "${version}")
+        fi 
       fi
 
+    else
+      # 到这里，说明 indexs library 中不存在 command..
+      # 查看缓存目录, 如果缓存目录存在，且在目录中找到了'.yxct.index.conf'
+      # 那么使用这个文件当作index文件, 而不是indexs library 中的indexs
+      yxct_msg "search ${command} from local cache..."
+      local index_path="${repo}/.yxct.index.conf"
+      if [ -f "${index_path}" ]; then
+        
+        # 这里，如果传入了 git-hash参数， 也不再继续探测gitaddr
+        if [ -z "${githash}" ]; then
+
+          # get the latest version if --version params not provide
+          if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
+            version=$(search_in_index "${command}" --key 'latest' --index "${index_path}")
+          fi
+
+          # get git-hash with the specific version
+          if [ -n "${version}" ]; then
+            # get git-has with the 'version'
+            githash=$(search_in_index "${command}" --key "${version}" --index "${index_path}")
+            if [ -n "${githash}" ]; then
+              # get git-address
+              gitaddr=$(search_in_index "${command}" --key 'repo' --index "${index_path}")
+            fi
+          fi
+
+        fi
+
+      fi
+
+
+
+      # 到这里，说明当前 .yxct.index.conf 中，没有要查找的版本
+      # 最有可能的情况是，上次从缓存中安装了较低的版本， 然后当前仓库处于detach状态
+      # 现在要遍历所有分支，查找对应的version.
+      if [ -z "${githash}" ]; then
+
+        # 创建一个tmp目录，用于临时保存 .yxct.index.conf文件
+        local tmp_path=$(mktemp -d)
+        if [ ! -d "${tmp_path}" ]; then
+          yxct_fatal "Failed to create a temp directory"
+        fi
+
+
+        yxct_msg "search ${command} from branches..."
+        for branch_name in $(yxct_git_repo info --repo "${repo}" --all-branch); do
+          
+          yxct_msg "search ${branch_name} branch..."
+          # checkout the '.yxct.index.conf' file in the 'loop-branch' to tmp-path
+          if ! yxct_git_repo checkout --repo "${repo}" --branch "${branch_name}" --file '.yxct.index.conf' --work-tree "${tmp_path}"; then
+            continue
+          fi
+          index_path="${tmp_path}/.yxct.index.conf"
+          if [ -f "${index_path}" ]; then
+
+            # get the latest version if --version params not provide
+            if [ -z "${version}" ]  ||  yxct_strcontains "${version}" "latest" --ignorecase; then
+              version=$(search_in_index "${command}" --key 'latest' --index "${index_path}")
+            fi
+
+            # get git-hash with the specific version
+            if [ -n "${version}" ]; then
+              # get git-has with the 'version'
+              githash=$(search_in_index "${command}" --key "${version}" --index "${index_path}")
+              if [ -n "${githash}" ]; then
+                # get git-address
+                gitaddr=$(search_in_index "${command}" --key 'repo' --index "${index_path}")
+              fi
+            fi
+
+
+            # break
+            if [ -n "${githash}" ]; then
+              break
+            fi
+
+          fi
+        done
+      fi
+
+
     fi
 
-    # 这里要check-out 指定hash, 不需要branch 名字
-    yxct_git_repo checkout "${githash}" --repo "${repo}" ${addr_params}
-    result=$?
-    if [[ "${result}" == '0' ]]; then 
-      yxct_msg "${command} cached success checkout to ${githash}"
+
+    if [ -n "${githash}" ]; then
+
+      # checkout the version
+      local addr_params=
+      if [ -n "${gitaddr}" ]; then
+        addr_params="--addr ${gitaddr}"
+      fi
+
+
+      # 这里要check-out 指定hash, 不需要branch 名字
+      yxct_git_repo checkout "${githash}" --repo "${repo}" ${addr_params}
+      result=$?
+      if [[ "${result}" == '0' ]]; then 
+        yxct_msg "${command} cached success checkout to ${githash}"
+      else
+        yxct_fatal "failed to checkout ${command} cache to ${githash}"
+      fi
     else
-      yxct_fatal "failed to checkout ${command} cache to ${githash}"
+      yxct_fatal "unknown version:${version} of command:${command}"
+      result=1
     fi
+
+
   fi
 
 
