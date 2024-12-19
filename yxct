@@ -1291,17 +1291,11 @@ function yxct_git_repo()
         else
             yxct_verbcmd "git -C ${repo_path} config --unset advice.detachedHead"
         fi
-        if [[ "${result}" != '0' ]]; then 
-          yxct_fatal "failed to checkout the repo to:${git_hash}"
-        fi
       elif [ -n "${git_branch}" ]; then
-        if ! yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}"; then 
-          yxct_fatal "failed to checkout the repo to:${git_branch}"
-        fi
+        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}" 2>/dev/null
+        result=$?
       fi
     fi
-
-    result=0
 
   elif [[ "${operation}" == 'UPDATE' ]]; then
     
