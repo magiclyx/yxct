@@ -4273,7 +4273,7 @@ function cmd_upgrade()
           yxct_strvercmp "${version}" "${installed_version}"
           local compare_result=$?
           if [[ "${compare_result}" == '0' ]]; then
-            yxct_fatal "version '${version}' is equal to current version:${installed_version}"
+            yxct_fatal "command ${command} ${version} is already installed."
           elif [[ "${compare_result}" == '2' ]]; then
             yxct_fatal "version '${version}' is less than current version:${installed_version}"
           fi
