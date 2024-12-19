@@ -1164,7 +1164,7 @@ function yxct_git_repo()
     if [ -n "${branch}" ]; then
       # 如果给定新分支，切换到新分支
       if [ -z "${current_branch}" ]  ||  [[ "${branch}" != 'current_branch' ]]; then
-        yxct_verbcmd "git -C ${repo_path} checkout ${branch}"
+        yxct_verbcmd "git -C ${repo_path} checkout ${branch}" 2> /dev/null
       fi
     else
       # 如果没有给定新分支，但当前分支是分离状态, 切换到默认分支
@@ -1297,7 +1297,8 @@ function yxct_git_repo()
         # 修改 暂时没有其他办法，只能修改 advice.detachedHead config,
         local ori_detachedHead=$(git -C "${repo_path}" config advice.detachedHead)
         yxct_verbcmd "git -C ${repo_path} config advice.detachedHead false"
-        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_hash} ${file_params}"
+        # 因为这里允许错误，所以将错误信息扔掉，避免没必要的报错
+        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_hash} ${file_params}" 2>/dev/null
         result=$?
         if [ -n "${ori_detachedHead}" ]; then
           if [[ "${ori_detachedHead}" != 'false' ]]; then
@@ -1307,6 +1308,7 @@ function yxct_git_repo()
             yxct_verbcmd "git -C ${repo_path} config --unset advice.detachedHead"
         fi
       elif [ -n "${git_branch}" ]; then
+        # 因为这里允许错误，所以将错误信息扔掉，避免没必要的报错
         yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}" 2>/dev/null
         result=$?
       fi
