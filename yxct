@@ -1012,6 +1012,21 @@ function yxct_git_repo()
         info=$1
       ;;
 
+      --all-branch-local )
+        cursor=$1
+        info=$1
+      ;;
+
+      --all-branch-remote )
+        cursor=$1
+        info=$1
+      ;;
+
+      --all-branch )
+        cursor=$1
+        info=$1
+      ;;
+
       --file )
         shift
         file=$1
@@ -1386,6 +1401,21 @@ function yxct_git_repo()
         fi
       else
         result=1
+      fi
+    elif [[ "${info}" == '--all-branch-local' ]]; then
+      if __yxct_valid_repo; then
+        git -C "${repo_path}" branch --show-current
+        git -C "${repo_path}" branch --list | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
+      fi
+    elif [[ "${info}" == '--all-branch-remote' ]]; then
+      if __yxct_valid_repo; then
+        git -C "${repo_path}" branch --show-current
+        git -C "${repo_path}" branch -r | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
+      fi
+    elif [[ "${info}" == '--all-branch' ]]; then
+      if __yxct_valid_repo; then
+        git -C "${repo_path}" branch --show-current
+        git -C "${repo_path}" branch -a | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
       fi
     else
       result=1
