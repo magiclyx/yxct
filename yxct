@@ -956,6 +956,8 @@ function yxct_get_cmd_item()
 # checkout
 # 0:success
 # 
+#
+# 这个函数，需要重写！！！
 function yxct_git_repo()
 {
   local repo_path=
@@ -4546,11 +4548,19 @@ function cmd_upgrade()
       # 如果命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件, 这个函数会返回'1'
       # 如果更新失败，会直接fatal.
       checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+
     fi
 
 
 
-
+    # 前面的逻辑，会将安装包拷贝到cache目录。 然后让script_path指向这个路径。
+    # 但如果用户没有传入--path参数，这里需要尝试在缓存中搜索命令
+    if [ -z "${script_path}" ]; then
+      script_path=$(search_in_cache "${command}" "${cache_path}")
+      if [ -z "${script_path}" ]; then
+        yxct_fatal "can not find command ${command} from cache"
+      fi
+    fi
 
 
 
