@@ -3230,6 +3230,8 @@ cat <<EOF
                           from 'YXCT_CACHE_PATH' environment.
                           If 'YXCT_CACHE_PATH' environment not exist, ${CMD} will use default cache directory.
   
+  --all                   Display all above information.
+  
   NOTE:
     If no display parameters are specified, ${CMD} will look for existing items in order of priority, displaying one of them.
     The priority order is: '--installed' > '--indexs' > '--cache'
@@ -5441,6 +5443,12 @@ function cmd_info()
 
       --indexs )
         indexs_info=true
+      ;;
+
+      --all )
+        install_info=true;
+        indexs_info=true
+        cache_info=true;
       ;;
 
       --info-level )
