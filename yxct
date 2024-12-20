@@ -4368,21 +4368,6 @@ function cmd_upgrade()
     fi
 
 
-    local cmd_cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
-    if ! [ -d "${cmd_cellar_path}" ]; then
-      yxct_fatal "${command} not install"
-    fi
-
-
-
-#     # get git address
-#     local gitaddr=$(search_in_index "${command}" --key 'repo')
-#     if [ -z "${gitaddr}" ]; then
-#       yxct_fatal "can not find command '${command}' in indexs library. \
-# Use '${CMD} update' to update indexs library, or use '${CMD} reinstall --path <path>' \
-# to reinstall the command from a specific source. Use '${CMD} --help' to show more information."
-#     fi
-
 
     if [ -z "${version}" ]; then
       if [ -n "${script_path}" ]; then
