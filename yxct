@@ -3689,72 +3689,103 @@ function cmd_install()
     fi 
 
     if [ -z "${version}" ]; then
-      version='LATEST'
+      if [ -n "${script_path}" ]; then
+        version='CURRENT'
+      else
+        version='LATEST'
+      fi
     fi
 
-    # 如果未提供'script_path'
-    if [ -z "${script_path}" ]; then
+    # get a valid cache path
+    # 如果 '--cache' 参数未提供 path
+    if [ -z "${cache_path}" ]; then
+      
+      # 获取cache, cache 路径可以为空或不存在
+      # 因为后面 如果未指定'--cache'参数，可以从网络拉取
+      if [ -n "${YXCT_CACHE_PATH}" ]; then
+        # 如果提供了环境变量， 从环境变量中读取 cache 路径
+        cache_path="${YXCT_CACHE_PATH}"
+      else
+        # 如果没提供环境变量，使用默认cache路径
+        cache_path="$(yxct_get_default_cache_path)"
+      fi
+    fi
 
-      # get a valid cache path
-      # 如果 '--cache' 参数未提供 path
-      if [ -z "${cache_path}" ]; then
-        
-        # 获取cache, cache 路径可以为空或不存在
-        # 因为后面 如果未指定'--cache'参数，可以从网络拉取
-        if [ -n "${YXCT_CACHE_PATH}" ]; then
-          # 如果提供了环境变量， 从环境变量中读取 cache 路径
-          cache_path="${YXCT_CACHE_PATH}"
+
+
+    # 如果提供了 script_path, 且script 不在cache目录
+    # 这里会将 script_path 拷贝到 cache 目录。 
+    # 如果cache目录已经存在command, 则覆盖之前的.
+    if [ -n "${script_path}" ]  &&  ! yxct_is_subpath "${cache_path}" "${script_path}"; then
+
+
+      if [ -d "${script_path}" ]; then
+      # 如果 script_path 是一个目录
+
+        local install_script_filename=$(search_file_by_reg_list "${script_path}" "^\s*\.${CMD}.setup(\.sh|\.py|\.rb)?\s*$")
+        local singl_app_name=$(file_name_if_single "${script_path}" --ignore ${ignore_reg_list[@]})
+        if [ -n "${install_script_filename}" ]  ||  [ -n "${singl_app_name}" ]; then
+        # 如果找到安装脚本 或是单脚本命令, 需要将目录拷贝到cache 目录
+
+          # 存在的话， 先删除
+          local cmd_cache_path="${cache_path}/${command}"
+          if [ -e "${cmd_cache_path}" ]; then
+            yxct_verbcmd "${RM} -rf ${cmd_cache_path}"
+          fi
+          # 再创建
+          yxct_verbcmd "${MKDIR} -p ${cmd_cache_path}"
+          if ! [ -d "${cmd_cache_path}" ]; then
+            yxct_fatal "failed to create dir:${cmd_cache_path}"
+          fi
+          # copy
+          if ! yxct_verbcmd "${CP} -R ${script_path}/ ${cmd_cache_path}"; then
+            yxct_fatal "failed to copy script dir to cache path"
+          fi
+
+          # 新的 script_path
+          script_path="${cmd_cache_path}"
+
         else
-          # 如果没提供环境变量，使用默认cache路径
-          cache_path="$(yxct_get_default_cache_path)"
-        fi
-      fi
-
-      # 如果没指定 --cache 参数， 那么准备好 cache
-      if ! ${use_cache}; then
-        # update indexs library
-        if ! update_index_if_need; then
-          yxct_fatal "failed to update index"
+          # 如果目录中文件，去掉白名单的文件和--ignore正则指定忽略的文件后，还有多个文件，则不知道如何安装, 直接报错
+          yxct_fatal "There are mutiple files in script path, but no install script found. ${CMD} don't know how to install the command."
         fi
 
-        if ! checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"; then
-          yxct_fatal "failed to checkout '${command}'"
+      elif [ -f "${script_path}" ]; then
+
+        # 存在的话， 先删除
+        local cmd_cache_path="${cache_path}/${command}"
+        if [ -e "${cmd_cache_path}" ]; then
+          yxct_verbcmd "${RM} -rf ${cmd_cache_path}"
         fi
+        # 再创建
+        yxct_verbcmd "${MKDIR} -p ${cmd_cache_path}"
+        if ! [ -d "${cmd_cache_path}" ]; then
+          yxct_fatal "failed to create dir:${cmd_cache_path}"
+        fi
+        # copy
+        if ! yxct_verbcmd "${CP} ${script_path} ${cmd_cache_path}"; then
+          yxct_fatal "failed to copy command to cache path"
+        fi
+
+        # 新的 script_path
+        script_path="${cmd_cache_path}"
+
+      else
+        # 既不是文件，也不是目录，无效script_path
+        yxct_fatal "Invalid script path:${script_path}"
       fi
 
-      # 在cache中搜索命令安装包，并更新script_path
-      script_path=$(search_in_cache "${command}" "${cache_path}")
-      if [ -z "${script_path}" ]; then
-        yxct_fatal "can not find command ${command} from cache"
-      fi
-      
     fi
 
 
-    if [ -z "${bin_path}" ]; then
-      bin_path="${DEFAULT_BIN_PATH}"
-    fi
+    # 如果安装包是yxct格式，需要解压一次
+    local single_file_name=$(file_name_if_single "${script_path}")
+    if [ -n "${single_file_name}" ]; then
 
-
-    # extra package if need
-    if [ -n "${script_path}" ]; then
-      
-      # 'script_path' 指向的可能是一个package, 也可能指向一个包含package的文件夹
-      local single_file_path=
-      if [ -f "${script_path}" ]; then
-        single_file_path="${script_path}"
-      elif [ -d "${script_path}" ]; then
-        local single_file_name=$(file_name_if_single "${script_path}")
-        if [ -n "${single_file_name}" ]; then
-          single_file_path="${script_path%\/}/${single_file_name}"
-        fi
-      fi
-
-
-      # 如果找到了一个文件
+      single_file_path="${script_path%\/}/${single_file_name}"
       if [ -n "${single_file_path}" ]; then
 
-          # 这里通过扩展名，判断文件是否是一个 package
+        # 这里通过扩展名，判断文件是否是一个 package
         local package_name=$(basename "${single_file_path}")
         if [[ "${package_name##*.}" == 'yxct' ]]; then
 
@@ -3762,7 +3793,7 @@ function cmd_install()
           if [ ! -d "${tmp_path}" ]; then
             yxct_fatal "Failed to create a temp directory"
           fi
-          
+
           # 释放package里的内容
           local pass_params=
           if [ -n "${pass}" ]; then
@@ -3775,13 +3806,46 @@ function cmd_install()
           fi
           YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
 
-          # 新的script_path路径
+          # 更新script_path路径
           script_path="${tmp_path%\/}/${package_name%.*}"
-        fi
+          # 更新cache_path路径
+          cache_path="${tmp_path}"
+
+        fi # end of (if [[ "${package_name##*.}" == 'yxct' ]]; then)
 
       fi # end of (if [ -n "${single_file_path}" ]; then)
 
-    fi # end of (if [ -n "${script_path}" ]; then)
+    fi # end of (if [ -n "${single_file_name}" ]; then)
+
+
+    if ! ${use_cache}; then
+      # update indexs library
+      if ! update_index_if_need; then
+        yxct_fatal "failed to update index"
+      fi
+
+      # 如果命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件, 这个函数会返回'1'
+      # 如果更新失败，会直接fatal.
+      checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+
+    fi
+
+
+    # 前面的逻辑，会将安装包拷贝到cache目录。 然后让script_path指向这个路径。
+    # 但如果用户没有传入--path参数，这里需要尝试在缓存中搜索命令
+    if [ -z "${script_path}" ]; then
+      script_path=$(search_in_cache "${command}" "${cache_path}")
+      if [ -z "${script_path}" ]; then
+        yxct_fatal "can not find command ${command} from cache"
+      fi
+    fi
+
+
+
+
+    if [ -z "${bin_path}" ]; then
+      bin_path="${DEFAULT_BIN_PATH}"
+    fi
 
 
 
