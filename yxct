@@ -434,11 +434,11 @@ function yxct_datastr_to_second()
 	local result=0
 	local date_str=$(echo "${1}" | tr '[:upper:]' '[:lower:]' | grep -o "[^ ]\+\( \+[^ ]\+\)*")
 	for tag in YEAR MONTH DAY HOUR MINUTE SECOND; do	
-		local section=$(echo "${date_str}" | grep -oE "^\s*\d+${REG_MAP[${tag}]}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+		local section=$(echo "${date_str}" | grep -oE "^[[:space:]]*[1-9][0-9]*${REG_MAP[${tag}]}" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
 		
 		if [ -n "${section}" ]; then
 			
-			local num=$(echo "${section}" | grep -oE "^\d+" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+			local num=$(echo "${section}" | grep -oE "^[[:space:]]*[1-9][0-9]*" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
 			if [ -z "${num}" ]; then
 				yxct_fatal "invalid time format:$1"
 			fi
