@@ -2166,6 +2166,8 @@ function run_setup_script()
 }
 
 # 根据命令名直接卸载可执行文件
+# 如果有安装(cellar中有记录), library 和 record-hash , 匹配上一个就删除
+# 如果没有安装(cellar中有记录), 直接删除
 function remove_command()
 {
   local all=false
@@ -2196,31 +2198,53 @@ function remove_command()
   fi
 
 
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+  library_path="${library_path}/${command}"
+
+
   # 提前额外验证一下， while循环里的验证不能抱错误警告
   if ! $(which "${command}" > /dev/null); then
     yxct_fatal "Can not find the command:${command}"
   fi
 
+  # 循环删除时只报error, 确保后续删除操作继续
   while true; do
     local finded_exec_path=$(which "${command}")
     if [ -z "${finded_exec_path}" ]; then
       break
     fi
 
-    if ! [ -w ${finded_exec_path} ]; then
-     yxct_fatal "Have not permission to remove the file:${finded_exec_path}"
+    if ! [ -w "${finded_exec_path}" ]; then
+     yxct_err "have not enough permission to remove the file:${finded_exec_path}"
+     continue
     fi
 
-    if [ -n "${hash}" ]; then
-      if ! check_file_hash "${finded_exec_path}" "${hash}"; then
-        break
+    if [ -h "${finded_exec_path}" ]; then
+      # 如果找到的文件是一个链接，需要判断一下链接指向。
+      # 如果不是指向library, 则需要报一个警告，说明原文件不会被删除
+      local bin_path_source=$(readlink "${bin_path}")
+      if [ -n "${bin_path_source}" ]; then
+        # 如果连接指向的原文件在librray目录下
+        if ! yxct_is_subpath "${library_path}" "${bin_path_source}"; then
+          yxct_warn "dest file is a link. ${CMD} will deletes the link, but the original file to which the link points is still there.You can choose to delete this file manually:${bin_path_source}"
+        fi
+      fi
+    else
+      # 如果找到的文件是一个文件，直接验证hash就行
+      if [ -n "${hash}" ]; then
+        if ! check_file_hash "${finded_exec_path}" "${hash}"; then
+          yxct_err "failed to check command's hash value:${finded_exec_path}"
+          continue
+        fi
       fi
     fi
 
     # 强制删除命令
-    yxct_verbcmd "${RM} -f ${finded_exec_path}"
-    if [[ $? != '0' ]]; then
-      yxct_fatal "Fail to uninstall '${command}'"
+    if ! yxct_verbcmd "${RM} -f ${finded_exec_path}"; then
+      yxct_err "failed to remove '${command}' at path:${finded_exec_path}"
     fi
 
     if ! ${all}; then
@@ -2228,6 +2252,11 @@ function remove_command()
     fi
 
   done
+
+  # remove command's library
+  if ! yxct_verbcmd "${RM} -rf ${library_path}"; then
+    yxct_err "failed to remove ${command}'s library:${library_path}"
+  fi
 
   # remove setter
   setup_cellar uninstall "${command}"
