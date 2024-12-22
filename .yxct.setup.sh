@@ -258,6 +258,45 @@ function cmd_uninstall()
 
 }
 
+function cmd_upgrade()
+{
+  local bin_path=
+  local lib_path=
+  local command=
+
+  while [ $# -gt 0 ]; do
+		case $1 in
+
+      --bin-path )
+        shift
+        bin_path=$1
+      ;;
+
+      --lib-path )
+        shift
+        lib_path=$1
+      ;;
+
+      --command )
+        shift
+        command=$1
+      ;;
+
+
+      *)
+        yxct_fatal "unknown params $1."
+      ;;
+    esac
+    shift
+  done
+
+  # yxct 本身有update命令，但yxct必须可以自举.
+  if ! "${YXCT}" update; then
+    yxct_fatal "failed to upgrade ${CMD}"
+  fi
+
+  return 0
+}
 
 
 ####################################################################################################
@@ -268,6 +307,10 @@ function cmd_uninstall()
 # Force root
 if [ "$(id -u)" -ne 0 ]; then
   yxct_fatal "'${CMD} should run with root"
+fi
+
+if [ -z "${YXCT}" ]; then
+  yx_fatal "failed to find 'YXCT' environment."
 fi
 
 
