@@ -2387,32 +2387,76 @@ function install_file()
     yxct_fatal "Can not read file:${file_path}"
   fi
 
-  if [ -z ${bin_path} ]; then
-    yxct_fatal "destination path is empty."
-  fi
-
   if [ -z "${command}" ]; then
     command=$(basename "${file_path}")
   fi
 
+  if [ -z "${bin_path}" ]; then
+    yxct_fatal "destination path is empty."
+  fi
   local dest_path="${bin_path}/${command}"
 
-  # 在没有指定--force时，如果目标文件已存在，且和要考呗的文件不同，则fatal
-  if [ -f "${dest_path}" ] && ! ${force}; then
-    local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}')
-    if ! check_file_hash "${dest_path}" "${file_hash}"; then
-      yxct_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file"
+  local library_path=$(yxct_get_library_path)
+  if [ -z "${library_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+  library_path="${library_path}/${command}"
+
+
+  # 当没有指定'--force' 参数，且任何目标文件已存在时，需要报错
+  # 报错会自动忽略目标文件相同的情况。确保重复安装相同command时，不需要指定 '--force'
+  if ! ${force}; then
+
+    if [ -d "${library_path}" ]; then
+
+      # 判断 library 中的文件，并验证hash. library 中的文件hash必须与要安装文件的hash相同，否则报错
+      local command_name=$(file_name_if_single "${library_path}")
+      local file_hash=$(shasum -a 256 "${file_path}" | awk '{print $1}')
+      if [ -z "${command_name}" ] || ! check_file_hash "${library_path}/${command_name}" "${file_hash}"; then
+        yxct_fatal "file already exist on library path:${library_path}. Use --force to overwrite the exist file."
+      fi
+
+      # bin-path 的文件必须是一个连接文件，且这个连接文件必须指向library中的文件. 否则报错.
+      if [ -h "${dest_path}" ]; then
+        local dest_link_source=$(readlink "${dest_path}")
+        if [ -n "${dest_link_source}" ]; then
+          if [[ "${dest_link_source}" != "${library_path}/${command_name}" ]]; then
+            yxct_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file."
+          fi
+        fi
+      elif [ -e "${dest_path}" ]; then
+        yxct_fatal "file already exist on dest path:${dest_path}. Use --force to overwrite the exist file."
+      fi
+
+    elif [ -e "${library_path}" ]; then
+      yxct_fatal "file already exist on library path:${library_path}. Use --force to overwrite the exist file."
     fi
   fi
 
 
-  # 之前已经验证过 force了，这里仍然判断force参数， 避免多脚本同时执行
-  local force_params=''
-  if ${force}; then
-    force_params='-f'
+  # remove old library file if exist.
+  if ! yxct_verbcmd "${RM} -rf ${library_path}"; then
+    yxct_fatal "failed to remove old library dir:${library_path}"
   fi
 
-  yxct_verbcmd "${CP} ${force_params} ${file_path} ${bin_path}/${command}"
+  # create library dir
+  yxct_verbcmd "${MKDIR} -p ${library_path}"
+  if ! [ -d "${library_path}" ]; then
+    yxct_fatal "failed to create library directory"
+  fi
+
+  # copy command to library dir
+  if ! yxct_verbcmd "${CP} -f ${file_path} ${library_path}"; then
+    yxct_fatal "failed to copy command to library dir"
+  fi
+
+  # link command to bin path
+  local command_name=$(basename "${file_path}")
+  if ! yxct_verbcmd "${LN} -sf ${library_path}/${command_name} ${dest_path}"; then
+    yxct_fatal "faild to link command to ${dest_path}"
+  fi
+
+  return 0
 }
 
 
