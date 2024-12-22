@@ -4527,7 +4527,7 @@ function cmd_upgrade()
             yxct_fatal "failed to create dir:${cmd_cache_path}"
           fi
           # copy
-          if ! yxct_verbcmd "${CP} -R ${script_path}/ ${cmd_cache_path}"; then
+          if ! yxct_verbcmd "${CP} -R ${script_path}/. ${cmd_cache_path}"; then
             yxct_fatal "failed to copy script dir to cache path"
           fi
 
