@@ -2815,6 +2815,13 @@ function search_in_cache()
   echo "${result}"
 }
 
+# return value:
+# 0 成功
+# 1 失败: 仓库不在 indexs library 和 index.conf 控制下
+# 2 失败: update failed
+# 3 失败: checkout failed.
+# 4 失败: unknown version of command
+# 11 cache already in 'HEAD' 
 function checkout_a_cache()
 {
   local version=
@@ -2880,7 +2887,6 @@ function checkout_a_cache()
 
   local index_params=
   local result=
-  yxct_msg "prepare ${command} cache ..."
   if [ -n "${version}" ]  &&  yxct_strcontains "${version}" "head" --ignorecase; then
 
     yxct_msg "search ${command} from indexs library..."
@@ -2928,10 +2934,10 @@ function checkout_a_cache()
     if [[ "${result}" == '0' ]]; then
       yxct_msg "${command} cache updated to 'HEAD'"
     elif [[ "${result}" == '11' ]]; then
-      result=0 # 这里要将 result置为0， 否则外面会报错
       yxct_msg "${command} cache is already in 'HEAD'"
     else
-      yxct_fatal "failed to prepared cache"
+      result=2
+      # yxct_err "failed to prepared cache"
     fi
 
   elif [ -z "${version}" ]  ||  yxct_strcontains "${version}" "current" --ignorecase; then
@@ -3060,11 +3066,12 @@ function checkout_a_cache()
       if [[ "${result}" == '0' ]]; then 
         yxct_msg "${command} cached success checkout to ${githash}"
       else
-        yxct_fatal "failed to checkout ${command} cache to ${githash}"
+        # yxct_fatal "failed to checkout ${command} cache to ${githash}"
+        result=3
       fi
     else
-      yxct_fatal "unknown version:${version} of command:${command}"
-      result=1
+      # yxct_err "unknown version:${version} of command:${command}"
+      result=4
     fi
 
 
