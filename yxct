@@ -310,6 +310,22 @@ function yxct_err()
 
 }
 
+function yxct_warn()
+{
+  if ${YXCT_USEYXLIB}; then
+    yx_warn $@
+  else
+    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_WARN}" )); then
+      return
+    fi
+
+    local yellow=$(tput setaf 3);
+    local reset=$(tput sgr0);
+
+    (>&2 echo "${yellow}${1}${reset}")
+  fi
+}
+
 function yxct_str_checkfmt()
 {
   local reg=$1
