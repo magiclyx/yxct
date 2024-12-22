@@ -327,6 +327,8 @@ if [[ ${sub_cmd} == 'install' ]]; then
   cmd_install $@
 elif [[ ${sub_cmd} == 'uninstall' ]]; then
   cmd_uninstall $@
+elif [[ ${sub_cmd} == 'upgrade' ]]; then
+  cmd_upgrade $@
 else
   yxct_fatal "unknown sub command:'${sub_cmd}'."
 fi
