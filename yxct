@@ -2612,14 +2612,82 @@ function uninstall_by_bin_path()
 
 
 
-  if [ -f "${bin_path}" ]; then
-  # 如果bin_path 是个文件, 直接删除， command 提供验证
+
+  function __uninstall_by_bin_file()
+  {
+    local bin_file=
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --file )
+          shift
+          bin_file=$1
+        ;;
+
+        *)
+          yxct_fatal "Invalid params:${$1}"
+      esac
+      shift
+    done
+
+
+    if [ -z "${bin_file}" ]; then
+        yxct_fatal "bin-file is empty."
+    fi
+
+
+    # 现在command 应该不会为空了，不过还是保留逻辑严谨
+    local filename=$(basename "${bin_path}")
     if [ -n "${command}" ]; then
-      local filename=$(basename "${bin_path}")
       if [[ "${filename}" != "${command}" ]]; then
         yxct_fatal "Filename name '${filename}' and command '${command}' not matched."
       fi
+    else
+      command="${filename%.*}"
+    fi
 
+    # 如果 bin_path 指向文件是一个连接
+    if [ -h "${bin_path}" ]; then
+
+      local library_path=$(yxct_get_library_path)
+      if [ -z "${library_path}" ]; then
+        yxct_fatal "failed to get library path"
+      fi
+      library_path="${library_path}/${command}"
+
+      # 对连接指向的源文件进行判断
+      local bin_path_source=$(readlink "${bin_path}")
+      if [ -n "${bin_path_source}" ]; then
+      
+        # 如果连接指向的原文件在librray目录下
+        if yxct_is_subpath "${library_path}" "${bin_path_source}"; then
+
+          # 如果记录了文件hash, 验证问价hash
+          local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
+          if [ -n "${cellar_hash}" ]; then
+            if ! check_file_hash "${bin_path}" "${cellar_hash}"; then
+              yxct_fatal "failed to check hash value for execute file:${bin_path}"
+            fi
+          fi
+
+          # 删除 library 目录下的文件
+          if ! yxct_verbcmd "${RM} -rf ${library_path}"; then
+            yxct_fatal "failed to remove command library:${library_path}"
+          fi
+
+        else
+          yxct_warn "dest file is a link. ${CMD} will deletes the link, but the original file to which the link points is still there.You can choose to delete this file manually:${bin_path_source}"
+        fi
+      
+      else
+        yxct_warn "dest file is a link. but the original file to which the linked file points does not exist. ${CMD} will deletes the link file only."
+      fi
+
+      # 删除链接
+      if ! yxct_verbcmd "${RM} -f ${bin_path}"; then
+        yxct_fatal "failed to remove command:${bin_path}"
+      fi
+    else
+      #如果 bin_path 指向文件是一个普通文件
       local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
       if [ -n "${cellar_hash}" ]; then
         if ! check_file_hash "${bin_path}" "${cellar_hash}"; then
@@ -2627,20 +2695,22 @@ function uninstall_by_bin_path()
         fi
       fi
 
-        # # 要删除的文件必须和传入的文件相同
-        # if ! check_file_hash "${finded_exec_path}" "${file_hash}"; then
-        #   yxct_fatal "Script and execute file not matched:(${execute_file_path})"
-        # fi
-      # fi
-
+      # 删除文件
+      if ! yxct_verbcmd "${RM} -f ${bin_path}"; then
+        yxct_fatal "failed to remove command:${bin_path}"
+      fi
     fi
+  }
 
-    # 强制删除命令
-    yxct_verbcmd "${RM} -f ${bin_path}"
-    if [[ $? != 0 ]]; then
-      yxct_fatal "Fail to uninstall '${command}' on path:${bin_path}"
-    fi
+
+
+  if [ -f "${bin_path}" ]; then
+
+    __uninstall_by_bin_file --file "${bin_path}"
+
+    # 清理 cellar
     setup_cellar uninstall "${command}"
+
   elif [ -d "${bin_path}" ]; then
   # 如果bin_path 是个目录, 则command 不能为空, 根据command删除
 
@@ -2653,18 +2723,12 @@ function uninstall_by_bin_path()
       yxct_fatal "Script does not exist:${execute_file_path}"
     fi
 
-    local cellar_hash=$(yxct_get_cellar_item "${command}" --command-hash)
-    if [ -n "${cellar_hash}" ]; then
-      if ! check_file_hash "${execute_file_path}" "${cellar_hash}"; then
-        yxct_fatal "failed to check hash value for execute file:${execute_file_path}"
-      fi
-    fi
+    # 删除逻辑
+    __uninstall_by_bin_file --file "${execute_file_path}"
 
-    # 强制删除命令
-    yxct_verbcmd "${RM} -f ${execute_file_path}"
-    if [[ $? != 0 ]]; then
-      yxct_fatal "Fail to uninstall '${command}' in path:${bin_path}"
-    fi
+    # 把空文件夹也清理掉
+    yxct_verbcmd "${RM} -rf ${bin_path}"
+
     setup_cellar uninstall "${command}"
   else
     # 既不是文件，也不是目录，无效bin_path
