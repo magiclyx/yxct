@@ -833,7 +833,7 @@ function yxct_config_allkeys()
       ;;
       
       *)
-        yx_fatal "Invalid optional ${1}"
+        yxct_fatal "Invalid optional ${1}"
       ;;
     esac
     shift
@@ -841,7 +841,7 @@ function yxct_config_allkeys()
   
   
   if [ -z "${file}" ]; then
-    yx_fatal 'file is empty'
+    yxct_fatal 'file is empty'
   fi
   
   if [ -f "${file}" ]; then
@@ -1073,7 +1073,7 @@ function yxct_git_repo()
             yxct_fatal "invalid name of ${cursor} $1"
           fi
         else
-          yx_fatal "invalid optional ${1}"
+          yxct_fatal "invalid optional ${1}"
         fi
     esac
     shift
@@ -2859,7 +2859,7 @@ function checkout_a_cache()
             yxct_fatal "invalid name of ${cursor} $1"
           fi
         else
-          yx_fatal "invalid optional ${1}"
+          yxct_fatal "invalid optional ${1}"
         fi
 
     esac
@@ -4933,7 +4933,7 @@ function cmd_config()
             yxct_fatal "invalid name of ${cursor} $1"
           fi
         else
-          yx_fatal "invalid optional ${1}"
+          yxct_fatal "invalid optional ${1}"
         fi
       ;;
 
@@ -5081,10 +5081,10 @@ function cmd_pack()
           elif [[ "${cursor}" == '--pass' ]]; then
             pass=$(echo "${pass} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
           else
-            yx_fatal "Invalid name of ${cursor} $1"
+            yxct_fatal "Invalid name of ${cursor} $1"
           fi
         else
-          yx_fatal "Invalid optional ${1}"
+          yxct_fatal "Invalid optional ${1}"
         fi
       ;;
     esac
@@ -5371,7 +5371,7 @@ function cmd_search()
             yxct_fatal "invalid name of ${cursor} $1"
           fi
         else
-          yx_fatal "invalid optional ${1}"
+          yxct_fatal "invalid optional ${1}"
         fi
       ;;
     esac
@@ -5530,7 +5530,7 @@ function cmd_info()
       ;;
 
       *)
-        yx_fatal "invalid optional ${1}"
+        yxct_fatal "invalid optional ${1}"
       ;;
     esac
     shift
