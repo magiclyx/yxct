@@ -4648,7 +4648,8 @@ function cmd_upgrade()
     fi
 
 
-
+    # 如果参数使用了--path，则尝试更新到--path指向的版本。
+    # check out 函数应该什么都不会做
     if [ -z "${version}" ]; then
       if [ -n "${script_path}" ]; then
         version='CURRENT'
@@ -4675,16 +4676,8 @@ function cmd_upgrade()
     fi
 
 
-    # get bin-path
-    local bin_path=$(yxct_get_cellar_item "${command}" --bin-path)
-    if [ -z "${bin_path}" ]; then
-      yxct_fatal "failed to get dest paths"
-    fi
 
-
-
-
-    # get a valid cache path
+    # 确定缓存目录
     # 如果 '--cache' 参数未提供 path
     if [ -z "${cache_path}" ]; then
       
@@ -4701,7 +4694,14 @@ function cmd_upgrade()
     fi
 
 
+    # 确定 bin-path
+    local bin_path=$(yxct_get_cellar_item "${command}" --bin-path)
+    if [ -z "${bin_path}" ]; then
+      yxct_fatal "failed to get dest paths"
+    fi
 
+
+    # 拷贝 --path 到 --cache 目录
     # 如果提供了 script_path, 且script 不在cache目录
     # 这里会将 script_path 拷贝到 cache 目录。 
     # 如果cache目录已经存在command, 则覆盖之前的.
@@ -4808,17 +4808,58 @@ function cmd_upgrade()
 
 
 
+
+    # 先尝试 checkout 本地缓存
+    # 如果 checkout 失败, 且不要求只使用缓存, 则'强制'更新 indexs library.
+    # 更新后，再次 尝试 checkout.
+
+    # 第一次checkout
+    # 将缓存 checkout 到合适的版本
+    checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+    local checkout_result=$?
+
+    # 如果不要求只使用缓存
     if ! ${use_cache}; then
-      # update indexs library
-      if ! update_index_if_need; then
-        yxct_fatal "failed to update index"
+      # 如果checkout报错
+      if [[ "${checkout_result}" != '0' ]] && [[ "${checkout_result}" != '1' ]] && [[ "${checkout_result}" != '11' ]]; then
+
+        # 强制更新, 使用了 '--force'
+        if ! update_index_if_need --force; then
+          yxct_fatal "failed to update index"
+        fi
+
+        # 再次尝试 checkout, 失败报错
+        checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+        checkout_result=$?
+        if [[ "${checkout_result}" != '0' ]]; then
+          if [[ "${checkout_result}" == '1' ]]; then
+            # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
+            :
+          elif [[ "${checkout_result}" == '2' ]]; then
+            yxct_fatal "failed to update ${command}'s cache to version:${version}"
+          elif [[ "${checkout_result}" == '3' ]]; then
+            yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
+          elif [[ "${checkout_result}" == '4' ]]; then
+            yxct_fatal "unknown version:${version} of command:${command}"
+          fi
+        fi
       fi
-
-      # 如果命令不在indexs library 控制下，也没有 '.yxct.index.conf' 文件, 这个函数会返回'1'
-      # 如果更新失败，会直接fatal.
-      checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
-
+    else
+      # 如果要求只使用缓存, 直接报错
+      if [[ "${checkout_result}" != '0' ]]; then
+        if [[ "${checkout_result}" == '1' ]]; then
+          # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
+          :
+        elif [[ "${checkout_result}" == '2' ]]; then
+          yxct_fatal "failed to update ${command}'s cache to version:${version}"
+        elif [[ "${checkout_result}" == '3' ]]; then
+          yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
+        elif [[ "${checkout_result}" == '4' ]]; then
+          yxct_fatal "unknown version:${version} of command:${command}"
+        fi
+      fi
     fi
+
 
 
 
