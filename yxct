@@ -3698,6 +3698,10 @@ EOF
 
 function cmd_install()
 {
+  # 因为script_path 参数指向会变
+  # 这里添加 'has_path_param'参数，用以标记
+  # 是否提供了 --path 参数
+  local has_path_param=false
   local script_path=
   local bin_path=
   local pass=
@@ -3733,6 +3737,7 @@ function cmd_install()
 
       --path )
         shift
+        has_path_param=true
         script_path=$1
       ;;
 
@@ -3848,10 +3853,8 @@ function cmd_install()
       export YXCT_USEYXLIB=false
     fi 
 
-    # 如果参数使用了--path，则尝试更新到--path指向的版本。
-    # check out 函数应该什么都不会做
     if [ -z "${version}" ]; then
-      if [ -n "${script_path}" ]; then
+      if "${has_path_param}"; then
         version='CURRENT'
       else
         version='LATEST'
@@ -3895,9 +3898,9 @@ function cmd_install()
     local cmd_cellar_path=$(yxct_get_cellar_item "${command}" --cellar-path)
     if ! [ -d "${cmd_cellar_path}" ]; then
 
-      # 拷贝 --path 到 --cache 目录
-      # 如果提供了 script_path, 且script 不在cache目录
-      # 这里会将 script_path 拷贝到 cache 目录。 
+      #:! STEP 1.0
+      # 将 script_path 拷贝到 cache目录
+      # 如果提供了 script_path, 且script 不在cache目录, 则将 script_path 拷贝到 cache 目录
       # 如果cache目录已经存在command, 则覆盖之前的.
       if [ -n "${script_path}" ]  &&  ! yxct_is_subpath "${cache_path}" "${script_path}"; then
 
@@ -3961,6 +3964,7 @@ function cmd_install()
       fi
 
 
+      #:! STEP 2.0
       # 如果安装包是yxct格式，需要解压一次
       local single_file_name=$(file_name_if_single "${script_path}")
       if [ -n "${single_file_name}" ]; then
@@ -4001,29 +4005,53 @@ function cmd_install()
       fi # end of (if [ -n "${single_file_name}" ]; then)
 
 
-
+      #:! STEP 3.0
       # 将缓存 checkout 到合适的版本
-      # 如果使用了 --path 参数， 则先尝试 checkout 本地缓存
-      # 如果 checkout 失败, 且不要求只使用缓存, 则'强制'更新 indexs library.
-      # 更新后，再次 尝试 checkout.
+      # 这里分两种情况
+      # 1. 用户使用了--path参数。因为--path指向的本地目录可能有修改。 因此尽量不更新仓库，保证本地逻辑
+      # 2. 用户没使用--path参数。则优先更新cache目录
+      local checkout_result=
+      if ${has_path_param}; then
 
-      # 第一次checkout
-      checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
-      local checkout_result=$?
+        # 如果使用了 --path 参数， 则先尝试 checkout 本地缓存
+        # 如果 checkout 失败, 且不要求只使用缓存, 则'强制'更新 indexs library.
+        # 更新后，再次 尝试 checkout.
+        #
+        # => checkout两次的目的是，第一次失败可能是因为command的本地缓存，没有最新的版本信息
 
-      # 如果不要求只使用缓存
-      if ! ${use_cache}; then
-        # 如果checkout报错
-        if [[ "${checkout_result}" != '0' ]] && [[ "${checkout_result}" != '1' ]] && [[ "${checkout_result}" != '11' ]]; then
+        # 第一次checkout
+        # 这里使用了--path参数，如果 ${version} 是CURRENT 或 与仓库当前version相同，则下面命令不会做任何事。这就保证了本地修改不会被清掉
+        checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+        checkout_result=$?
 
-          # 强制更新, 使用了 '--force'
-          if ! update_index_if_need --force; then
-            yxct_fatal "failed to update index"
+        # 如果不要求只使用缓存
+        if ! ${use_cache}; then
+          # 如果checkout报错
+          if [[ "${checkout_result}" != '0' ]] && [[ "${checkout_result}" != '1' ]] && [[ "${checkout_result}" != '11' ]]; then
+
+            # 强制更新, 使用了 '--force'
+            if ! update_index_if_need --force; then
+              yxct_fatal "failed to update index"
+            fi
+
+            # 再次尝试 checkout, 失败报错
+            checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+            checkout_result=$?
+            if [[ "${checkout_result}" != '0' ]]; then
+              if [[ "${checkout_result}" == '1' ]]; then
+                # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
+                :
+              elif [[ "${checkout_result}" == '2' ]]; then
+                yxct_fatal "failed to update ${command}'s cache to version:${version}"
+              elif [[ "${checkout_result}" == '3' ]]; then
+                yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
+              elif [[ "${checkout_result}" == '4' ]]; then
+                yxct_fatal "unknown version:${version} of command:${command}"
+              fi
+            fi
           fi
-
-          # 再次尝试 checkout, 失败报错
-          checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
-          checkout_result=$?
+        else
+          # 如果要求只使用缓存, 直接报错
           if [[ "${checkout_result}" != '0' ]]; then
             if [[ "${checkout_result}" == '1' ]]; then
               # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
@@ -4037,8 +4065,24 @@ function cmd_install()
             fi
           fi
         fi
+
       else
-        # 如果要求只使用缓存, 直接报错
+
+        # 如果未使用 --path 参数
+        # 如果不要求只使用缓存, 则'尝试'更新 indexs library
+        # 不论是否更新，之后尝试 checkout.
+
+        # 如果不要求只使用缓存，尝试更新 
+        if ! ${use_cache}; then
+          # update indexs library
+          if ! update_index_if_need; then
+            yxct_fatal "failed to update index"
+          fi
+        fi
+
+        #checkout, 失败报错
+        checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
+        checkout_result=$?
         if [[ "${checkout_result}" != '0' ]]; then
           if [[ "${checkout_result}" == '1' ]]; then
             # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
@@ -4051,8 +4095,8 @@ function cmd_install()
             yxct_fatal "unknown version:${version} of command:${command}"
           fi
         fi
-      fi
 
+      fi
 
 
       # 前面的逻辑，会将安装包拷贝到cache目录。 然后让script_path指向这个路径。
