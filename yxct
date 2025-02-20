@@ -3924,7 +3924,7 @@ function cmd_install()
               yxct_fatal "failed to create dir:${cmd_cache_path}"
             fi
             # copy
-            if ! yxct_verbcmd "${CP} -R ${script_path}/. ${cmd_cache_path}"; then
+            if ! yxct_verbcmd "${CP} -R ${script_path}/ ${cmd_cache_path}"; then
               yxct_fatal "failed to copy script dir to cache path"
             fi
 
@@ -4668,6 +4668,65 @@ function cmd_upgrade()
   if ${show_help}; then
     yxct_usage_uninstall
     exit 0
+  elif [ -z "${command}" ]; then
+    if ${no_depend}; then
+      export YXCT_USEYXLIB=false
+    fi
+
+    if ${test}; then
+      TEST_ONLY=true
+    fi
+
+    if [ -n "${info_level}" ]; then
+      yxct_set_info_level "${info_level}"
+    fi
+
+
+    local params=
+    if [ -n "${script_path}" ]; then
+      params="${params} --path ${script_path}"
+    fi
+
+    if ${use_cache}; then
+      if [ -n "${cache_path}" ]; then
+        params="${params} --cache ${cache_path}"
+      else
+        params="${params} --cache"
+      fi
+    fi
+
+    if ${pass}; then
+      params="${params} --pass"
+    fi
+
+    if ${test}; then
+      params="${params} --test"
+    fi
+
+    if ${no_depend}; then
+      params="${params} --no-depend"
+    fi
+
+    if [ -n "${info_level}" ]; then
+      params="${params} --info-level ${info_level}"
+    fi
+
+    if [ "${ignore_reg_list[0]}" ]; then
+      params="${params} ${ignore_reg_list[@]}"
+    fi
+
+
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG+1))
+    for installed_command in $(cmd_list | awk '{print $1}'); do
+      yxct_msg "upgrade ${installed_command} ..."
+      cmd_upgrade "${installed_command}" ${params} ${additional}
+    done
+    YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
+
+
+    yxct_msg "upgrade finished."
+
+
   else
 
     if ${no_depend}; then
@@ -4682,6 +4741,7 @@ function cmd_upgrade()
       yxct_set_info_level "${info_level}"
     fi
 
+    
     if [ -z "${command}" ]; then
       yxct_fatal "Command is empty. Use --help to show more information."
     fi
@@ -4692,8 +4752,17 @@ function cmd_upgrade()
     fi
 
 
-    # 如果参数使用了--path，则尝试更新到--path指向的版本。
-    # check out 函数应该什么都不会做
+
+    #:! STEP 1.0
+    # 确认版本号
+    #
+    # 1. 如果用户未提供版本号，但使用了--path参数，提供了 script_path, 
+    #        则版本号使用CURRENT. CURRENT 用于尽量保证 script_path 指向的本地仓库内容不变
+    #    如果用户未提供版本号，也未提供 --path参数
+    #        则版本号使用LATEST, 尝试更新到最新版本
+    #
+    # 2. 比较用户要更新到的版本号和当前版本号，只有高于当前版本号，才能继续更新操作
+    ######################################################################################
     if [ -z "${version}" ]; then
       if [ -n "${script_path}" ]; then
         version='CURRENT'
@@ -4720,9 +4789,22 @@ function cmd_upgrade()
     fi
 
 
+    #:! STEP 2.0
+    # 获取安装路径
+    # get bin-path
+    ######################################################################################
+    local bin_path=$(yxct_get_cellar_item "${command}" --bin-path)
+    if [ -z "${bin_path}" ]; then
+      yxct_fatal "failed to get dest paths"
+    fi
 
-    # 确定缓存目录
-    # 如果 '--cache' 参数未提供 path
+
+    #:! STEP 3.0
+    # 获取缓存路径
+    # get a valid cache path
+    # 如果 '--cache' 参数未提供 path, 则尝试从环境变量取cache路径。
+    # 如果环境变量也没有，使用默认cache目录
+    ######################################################################################
     if [ -z "${cache_path}" ]; then
       
       # 获取cache, cache 路径可以为空或不存在
@@ -4738,17 +4820,11 @@ function cmd_upgrade()
     fi
 
 
-    # 确定 bin-path
-    local bin_path=$(yxct_get_cellar_item "${command}" --bin-path)
-    if [ -z "${bin_path}" ]; then
-      yxct_fatal "failed to get dest paths"
-    fi
 
-
-    # 拷贝 --path 到 --cache 目录
-    # 如果提供了 script_path, 且script 不在cache目录
-    # 这里会将 script_path 拷贝到 cache 目录。 
-    # 如果cache目录已经存在command, 则覆盖之前的.
+    #:! STEP 4.0
+    # 如果提供了 script_path, 且script 不在cache目录, 会将 script_path 拷贝到 cache 目录。 
+    # 拷贝时，如果cache目录已经存在, 则覆盖之前的.
+    ######################################################################################
     if [ -n "${script_path}" ]  &&  ! yxct_is_subpath "${cache_path}" "${script_path}"; then
 
 
@@ -4771,7 +4847,7 @@ function cmd_upgrade()
             yxct_fatal "failed to create dir:${cmd_cache_path}"
           fi
           # copy
-          if ! yxct_verbcmd "${CP} -R ${script_path}/. ${cmd_cache_path}"; then
+          if ! yxct_verbcmd "${CP} -R ${script_path}/ ${cmd_cache_path}"; then
             yxct_fatal "failed to copy script dir to cache path"
           fi
 
@@ -4811,7 +4887,9 @@ function cmd_upgrade()
     fi
 
 
+    #:! STEP 5.0
     # 如果安装包是yxct格式，需要解压一次
+    ######################################################################################
     local single_file_name=$(file_name_if_single "${script_path}")
     if [ -n "${single_file_name}" ]; then
 
@@ -4851,64 +4929,45 @@ function cmd_upgrade()
     fi # end of (if [ -n "${single_file_name}" ]; then)
 
 
+    #:! STEP 6.0
+    # 更新indexs仓库(如果没有提供--cache参数， 不要求使用缓存, 才更新)
+    ######################################################################################
+    if ! ${use_cache}; then
+      # update indexs library
+      if ! update_index_if_need; then
+        yxct_fatal "failed to update index"
+      fi
+
+    fi
 
 
-    # 先尝试 checkout 本地缓存
-    # 如果 checkout 失败, 且不要求只使用缓存, 则'强制'更新 indexs library.
-    # 更新后，再次 尝试 checkout.
-
-    # 第一次checkout
-    # 将缓存 checkout 到合适的版本
+    #:! STEP 7.0
+    # 将 cache 切换到需要的版本。
+    #     a.这里如果用户使用了--path参数(STEP 1.0), 且没指定--version. 则version 会被设置为CURRENT. 确保 cache 不被更新，保存本地更改
+    #     b. 如果cache不存在，这里应该尝试下载新的仓库(待验证)
+    ######################################################################################
+    # 如果更新失败，会直接fatal.
     checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
     local checkout_result=$?
-
-    # 如果不要求只使用缓存
-    if ! ${use_cache}; then
-      # 如果checkout报错
-      if [[ "${checkout_result}" != '0' ]] && [[ "${checkout_result}" != '1' ]] && [[ "${checkout_result}" != '11' ]]; then
-
-        # 强制更新, 使用了 '--force'
-        if ! update_index_if_need --force; then
-          yxct_fatal "failed to update index"
-        fi
-
-        # 再次尝试 checkout, 失败报错
-        checkout_a_cache "${command}" --version "${version}" --cache-dir "${cache_path}"
-        checkout_result=$?
-        if [[ "${checkout_result}" != '0' ]]; then
-          if [[ "${checkout_result}" == '1' ]]; then
-            # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
-            :
-          elif [[ "${checkout_result}" == '2' ]]; then
-            yxct_fatal "failed to update ${command}'s cache to version:${version}"
-          elif [[ "${checkout_result}" == '3' ]]; then
-            yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
-          elif [[ "${checkout_result}" == '4' ]]; then
-            yxct_fatal "unknown version:${version} of command:${command}"
-          fi
-        fi
-      fi
-    else
-      # 如果要求只使用缓存, 直接报错
-      if [[ "${checkout_result}" != '0' ]]; then
-        if [[ "${checkout_result}" == '1' ]]; then
-          # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
-          :
-        elif [[ "${checkout_result}" == '2' ]]; then
-          yxct_fatal "failed to update ${command}'s cache to version:${version}"
-        elif [[ "${checkout_result}" == '3' ]]; then
-          yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
-        elif [[ "${checkout_result}" == '4' ]]; then
-          yxct_fatal "unknown version:${version} of command:${command}"
-        fi
+    if [[ "${checkout_result}" != '0' ]]; then
+      if [[ "${checkout_result}" == '1' ]]; then
+        # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
+        :
+      elif [[ "${checkout_result}" == '2' ]]; then
+        yxct_fatal "failed to update ${command}'s cache to version:${version}"
+      elif [[ "${checkout_result}" == '3' ]]; then
+        yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
+      elif [[ "${checkout_result}" == '4' ]]; then
+        yxct_fatal "unknown version:${version} of command:${command}"
       fi
     fi
 
 
-
-
+    #:! STEP 8.0
     # 前面的逻辑，会将安装包拷贝到cache目录。 然后让script_path指向这个路径。
     # 但如果用户没有传入--path参数，这里需要尝试在缓存中搜索命令
+    # 缓存已经在 STEP 7.0 时，整备完成。
+    ######################################################################################
     if [ -z "${script_path}" ]; then
       script_path=$(search_in_cache "${command}" "${cache_path}")
       if [ -z "${script_path}" ]; then
@@ -4918,6 +4977,9 @@ function cmd_upgrade()
 
 
 
+    #:! STEP 9.0
+    # 开始更新逻辑
+    ######################################################################################
 
     local params=''
     # --command
