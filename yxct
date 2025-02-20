@@ -3099,9 +3099,10 @@ function checkout_a_cache()
             yxct_fatal "failed to get latest version:${version} of command:${command}"
           fi
 
-          # get git-has with the 'version'
-          githash=$(search_in_index "${command}" --key "${version}")
         fi 
+
+        # get git-has with the 'version'
+        githash=$(search_in_index "${command}" --key "${version}")
       fi
 
     else
