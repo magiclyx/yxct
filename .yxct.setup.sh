@@ -262,6 +262,8 @@ function cmd_upgrade()
 {
   local bin_path=
   local lib_path=
+  local from_version=
+  local to_version=
   local command=
 
   while [ $# -gt 0 ]; do
@@ -282,6 +284,16 @@ function cmd_upgrade()
         command=$1
       ;;
 
+      --from-version )
+        shift
+        from_version=$1
+      ;;
+
+      --to-version )
+        shift
+        to_version=$1
+      ;;
+
 
       *)
         yxct_fatal "unknown params $1."
@@ -289,6 +301,9 @@ function cmd_upgrade()
     esac
     shift
   done
+
+  echo "=>${from_version}"
+  echo "=>${to_version}"
 
   # yxct 本身有update命令，但yxct必须可以自举.
   if ! "${YXCT}" update; then
