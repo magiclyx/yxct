@@ -4770,6 +4770,15 @@ function cmd_upgrade()
         version='LATEST'
       fi
     fi
+
+    # 将latest转换为真正的版本号
+    if yxct_strcontains "${version}" "latest" --ignorecase; then
+      local fix_version=$(search_in_index "${command}" --key 'latest')
+      if [ -n "${fix_version}" ]; then
+        version="${fix_version}"
+      fi
+    fi
+
     # 如果version不是 latest 和 head, 则默认version为版本号。
     # 这里需要对比版本号
     if ! yxct_strcontains "${version}" "latest head current" --ignorecase; then
