@@ -6241,6 +6241,7 @@ if [[ $(yxct_os_type) == 'osx' ]]; then
 
   CP=/bin/cp
   RM=/bin/rm
+  MV=/bin/mv
   CHMOD=/bin/chmod
   BASH=/bin/bash
   ENV=/usr/bin/env
@@ -6251,6 +6252,7 @@ if [[ $(yxct_os_type) == 'osx' ]]; then
 else
   CP=/usr/bin/cp
   RM=/usr/bin/rm
+  MV=/usr/bin/mv
   CHMOD=/usr/bin/chmod
   BASH=/bin/bash
   ENV=/usr/bin/env

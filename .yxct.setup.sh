@@ -81,7 +81,7 @@ function cmd_install()
 
   # verify the pwd
   if ! [ -f "${script_path}/.yxct.setup.sh" ]; then
-    yxct_fatal "Current working directory not correct:${script_path}"
+    yxct_fatal "current working directory not correct:${script_path}"
   fi
 
 
@@ -260,6 +260,7 @@ function cmd_uninstall()
 
 function cmd_upgrade()
 {
+  local script_path=$(pwd)
   local bin_path=
   local lib_path=
   local from_version=
@@ -302,12 +303,135 @@ function cmd_upgrade()
     shift
   done
 
-  echo "=>${from_version}"
-  echo "=>${to_version}"
 
-  # yxct 本身有update命令，但yxct必须可以自举.
-  if ! "${YXCT}" update; then
-    yxct_fatal "failed to upgrade ${CMD}"
+
+  if [[ -z "${command}" ]]; then
+    yxct_fatal "command is empty"
+  fi
+  if [[ "${command}" != "${CMD}" ]]; then
+    yxct_fatal "unknown command ${CMD}"
+  fi
+
+  if [ -z "${bin_path}" ]; then
+    yxct_fatal "bin path is empty"
+  fi
+  if ! [[ -d "${bin_path}" ]]; then
+    yxct_fatal "target directory not exist:${bin_path}"
+  fi
+
+  if [ -z "${lib_path}" ]; then
+    yxct_fatal "failed to get library path"
+  fi
+
+  # verify the pwd
+  if ! [ -f "${script_path}/.yxct.setup.sh" ]; then
+    yxct_fatal "Current working directory not correct:${script_path}"
+  fi
+
+
+  # STEP 1.0
+  # 确认 lib-path 存在
+  # ##################################################
+  # lib-path
+  local cmd_lib_path="${lib_path%\/}/${command}"
+  if ! [ -d "${cmd_lib_path}" ]; then
+    yxct_fatal "command ${command} not exist"
+  fi
+
+
+  # STEP 2.0
+  # 整备"临时更新目录" ${lib_path%\/}/.${command}.upgrade
+  # ##################################################
+
+  # 删除旧的"临时更新目录", 如果存在
+  local cmd_upgrade_path="${lib_path%\/}/.${command}.upgrade"
+  if [ -d "${cmd_upgrade_path}" ]; then
+    if ! yxct_verbcmd "${RM} -rf ${cmd_upgrade_path}"; then
+      yxct_fatal "failed to old upgrade temp directory:${cmd_upgrade_path}"
+    fi
+  fi
+
+  # 创建新的"临时更新目录"
+  yxct_verbcmd "${MKDIR} -p ${cmd_upgrade_path}"
+  if ! [ -d "${cmd_upgrade_path}" ]; then
+    yxct_fatal "failed to make dir:${cmd_upgrade_path}"
+  fi
+
+  # 拷贝所有内容到"临时更新目录"
+  yxct_verbcmd "${CP} -R ${PWD}/. ${cmd_upgrade_path}"
+  if [[ $? != 0 ]]; then
+    yxct_fatal "failed to copy yxlib to ${cmd_upgrade_path}"
+  fi
+  yxct_verbcmd "${CHMOD} -R 755 ${cmd_upgrade_path}"
+  if [[ $? != 0 ]]; then
+    yxct_fatal "faild to change yxlib's authorization"
+  fi
+
+
+
+  # STEP 3.0
+  # 将 lib-path 中 关键目录，拷贝到"临时更新目录"
+  # ##################################################
+
+  # cellar
+  local cellar_path="${cmd_lib_path}/cellar"
+  if [ -d "${cellar_path}" ]; then
+    if ! yxct_verbcmd "${CP} -R ${cellar_path} ${cmd_upgrade_path}"; then
+      yxct_fatal "failed to copy cellar to update-path"
+    fi
+  fi
+
+  # index
+  local index_path="${cmd_lib_path}/index"
+  if [ -d "${index_path}" ]; then
+    if ! yxct_verbcmd "${CP} -R ${index_path} ${cmd_upgrade_path}"; then
+      yxct_fatal "failed to copy index to update-path"
+    fi
+  fi
+
+  # cache
+  local cache_path="${cmd_lib_path}/cache"
+  if [ -d "${cache_path}" ]; then
+    if ! yxct_verbcmd "${CP} -R ${cache_path} ${cmd_upgrade_path}"; then
+      yxct_fatal "failed to copy cache to update-path"
+    fi
+  fi
+  
+  # STEP 4.0
+  # 将 lib-path 更新为 buckup
+  # 将 "临时更新目录" 更改为 lib-path
+  # ##################################################
+  local cmd_buckup_path="${lib_path%\/}/.${command}.buckup"
+  if [ -e "${cmd_buckup_path}" ]; then
+    yxct_warn "buckup file exist, try to remove it: ${cmd_buckup_path}"
+    yxct_verbcmd "${RM} -rf ${cmd_buckup_path}"
+
+    if [ -e "${cmd_buckup_path}" ]; then
+      yxct_fatal "failed to remove old buckup file:${cmd_buckup_path}"
+    fi
+  fi
+
+  if ! yxct_verbcmd "${MV}" "${cmd_lib_path}" "${cmd_buckup_path}"; then
+    yxct_fatal "failed to mv command ${command}'s lip-path to buckup file"
+  fi
+  if ! yxct_verbcmd "${MV}" "${cmd_upgrade_path}" "${cmd_lib_path}"; then
+    yxct_fatal "failed to mv command ${command}'s update-path to lib-path"
+  fi
+
+  # STEP 5.0
+  # 删除 buckup-path
+  # ##################################################
+  yxct_verbcmd "${RM} -rf ${cmd_buckup_path}"
+  if [ -d "${cmd_buckup_path}" ]; then
+    yxct_fatal "failed to remove buckkup file:${cmd_buckup_path}"
+  fi
+
+  # STEP 6.0
+  # 删除 更新bin-path中的软连接
+  # ##################################################
+  yxct_verbcmd "${RM} -rf ${bin_path%/}/${command}"
+  if ! yxct_verbcmd "${LN} -sf ${cmd_lib_path}/yxct ${bin_path%/}/${command}"; then
+    yxct_fatal "faild to link command to ${bin_path}"
   fi
 
   return 0
