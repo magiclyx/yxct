@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+
+CMD='yxct'
+SOURCE="$0"
+DIR=
+while [ -h "$SOURCE"  ]; do
+    DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /*  ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd  )"
+YXCT="${DIR}/${CMD}"
+
+
+function is_osx()
+{
+  
+  local result=1
+  
+  if [ -n "${OSTYPE}" ]; then
+    if [[ "${OSTYPE}" == "darwin"* ]]; then 
+      result=0
+    fi
+  else
+    case $(uname | tr '[:upper:]' '[:lower:]') in
+      darwin*)
+        result=0
+      ;;
+      *)
+        result=1
+      ;;
+    esac
+  fi
+
+  return ${result}
+}
+
+function yxct_fast_install_script_usage()
+{
+
+  function __yxct_fast_install_script_destination_info()
+  {
+    if is_osx; then
+cat << EOF
+  --usr-local-bin           The command will be install to'/usr/local/bin' (It's the default optional)
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install
+        the command to '/usr/local/bin' as default.
+  
+  Un-support destination options on OSX:
+  --bin                     On OSX, this option will point to '/usr/loca/bin'
+  --sbin                    On OSX, this option will point to '/usr/loca/bin'
+  --usr-bin                 On OSX, this option will point to '/usr/loca/bin'
+  --usr-local-sbin          On OSX, this option will point to '/usr/loca/bin'
+EOF
+    else
+cat << EOF
+  --bin                     The command will be install to '/bin'
+  --sbin                    The command will be install to '/sbin'
+  --usr-bin                 The command will be install to '/usr/bin'
+  --usr-local-bin           The command will be install to '/usr/local/bin'
+  --usr-local-sbin          The command will be install to '/usr/local/sbin'
+  --custom-dest <path>      Indicate a custom path as destination.
+
+  Note: If none of the above destination paths are specified, ${CMD} will install the
+        command to '/usr/local/bin' as default.
+EOF
+    fi
+  }
+
+
+cat <<EOF
+  usage: install <optional>
+  Install ${CMD} command
+
+  usage: ${CMD} install --help
+  Show this help information
+
+  The following options are availiable:
+  --version <version>       Specify the version of the installation command. If version is 'Latest', ${CMD}
+                            will install the latest version of the command. If version is 'Head', ${CMD} will
+                            install the HEAD commit of command git repo.
+                            If '--path <path>' is indicated, the version string will be ignored.
+  
+  The following options indicate destination path:
+$(__yxct_fast_install_script_destination_info)
+  
+
+  The following options use for debug
+  --test                    ${CMD} will not execute any comannd but output them into stdout instead.
+
+  --no-depend               ${CMD} try not to depend on any other modules. It's a safe moodules.
+
+  --info-level              Command output level. 
+                            The specific level can be one of 'silent', 'fatal', 'error', 'verbose',
+                            or a number greater than 0.
+
+  Other options
+  Use 'install --help' show all help information
+EOF
+}
+
+if [[ $1 == '--help' ]] || [[ $1 == '-h' ]]; then
+  yxct_fast_install_script_usage
+else
+  if [ "$(id -u)" -ne 0 ]; then
+    (>&2 echo "$(tput setaf 1)Fatal:install ${CMD} command should run with root.$(tput sgr0)");
+    exit 1
+  fi
+
+  ${YXCT} install yxct --path "${DIR}" --version LATEST $@
+fi
