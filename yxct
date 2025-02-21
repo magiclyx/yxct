@@ -4556,16 +4556,16 @@ function cmd_update()
     fi
 
 
-    yxct_msg "begin update ${CMD}..."
-    yxct_git_repo update --repo "${repo}" --branch 'main'
-    local result=$?
-    if [[ "${result}" == '0' ]]; then
-      yxct_msg "done"
-    elif [[ "${result}" == '11' ]]; then
-      yxct_msg "${CMD} is already the latest version"
-    else
-      yxct_fatal "update failed"
-    fi
+    # yxct_msg "begin update ${CMD}..."
+    # yxct_git_repo update --repo "${repo}" --branch 'main'
+    # local result=$?
+    # if [[ "${result}" == '0' ]]; then
+    #   yxct_msg "done"
+    # elif [[ "${result}" == '11' ]]; then
+    #   yxct_msg "${CMD} is already the latest version"
+    # else
+    #   yxct_fatal "update failed"
+    # fi
 
     yxct_msg "begin update indexs library..."
     if ! update_index_if_need --force; then
