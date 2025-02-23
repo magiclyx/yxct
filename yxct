@@ -1686,22 +1686,24 @@ function setup_cellar()
 
     local git_hash=
     local git_addr=
-    if [ -n "${cache_dir}" ]; then
-      local command_repo="${cache_dir%\/}/${command}"
-      if [ -d "${command_repo}" ]; then
+    if which git > /dev/null; then
+      if [ -n "${cache_dir}" ]; then
+        local command_repo="${cache_dir%\/}/${command}"
+        if [ -d "${command_repo}" ]; then
 
-        # write git hash
-        git_hash=$(yxct_git_repo info --repo "${command_repo}" --head)
-        if [ -n "${git_hash}" ]; then
-          yxct_config_write --file "${info_file}" --key "githash" --val "${git_hash}"
+          # write git hash
+          git_hash=$(yxct_git_repo info --repo "${command_repo}" --head)
+          if [ -n "${git_hash}" ]; then
+            yxct_config_write --file "${info_file}" --key "githash" --val "${git_hash}"
+          fi
+
+          # write git addr
+          git_addr=$(yxct_git_repo info --repo "${command_repo}" --addr)
+          if [ -n "${git_addr}" ]; then
+            yxct_config_write --file "${info_file}" --key "gitaddr" --val "${git_addr}"
+          fi
+
         fi
-
-        # write git addr
-        git_addr=$(yxct_git_repo info --repo "${command_repo}" --addr)
-        if [ -n "${git_addr}" ]; then
-          yxct_config_write --file "${info_file}" --key "gitaddr" --val "${git_addr}"
-        fi
-
       fi
     fi
 
@@ -3854,11 +3856,21 @@ function cmd_install()
       export YXCT_USEYXLIB=false
     fi 
 
-    if [ -z "${version}" ]; then
-      if "${has_path_param}"; then
+    if which git > /dev/null; then
+      if [ -z "${version}" ]; then
+        if "${has_path_param}"; then
+          version='CURRENT'
+        else
+          version='LATEST'
+        fi
+      fi
+    else
+      if [ -z "${version}" ]; then
         version='CURRENT'
       else
-        version='LATEST'
+        if ! yxct_strcontains "${version}" "current" --ignorecase; then
+          yxct_fatal "no 'git' command found, can not change the version to '${version}.'"
+        fi
       fi
     fi
 

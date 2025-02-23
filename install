@@ -109,5 +109,5 @@ else
     exit 1
   fi
 
-  ${YXCT} install yxct --path "${DIR}" --version LATEST $@
+  ${YXCT} install yxct --path "${DIR}" $@
 fi
