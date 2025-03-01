@@ -68,6 +68,7 @@ if [ -z "${YXCT_DEFAULT_LEVEL}" ]; then
   YXCT_DEFAULT_LEVEL="${YXCT_LEVEL_INFO}"
 fi
 
+YXCT_GIT_NOCOLOR_PARAMS=(-c color.branch=false -c color.diff=false -c color.status=false)
 
 ###########################################################
 # Ignore file list in script folder
@@ -1448,17 +1449,17 @@ function yxct_git_repo()
     elif [[ "${info}" == '--all-branch-local' ]]; then
       if __yxct_valid_repo; then
         git -C "${repo_path}" branch --show-current
-        git -C "${repo_path}" branch --list | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
+        git -C "${repo_path}" --no-optional-locks "${YXCT_GIT_NOCOLOR_PARAMS[@]}" --no-pager branch --list | grep -Ev "^\s*\*\s*.*$" | grep -o "[^ ]\+\( \+[^ ]\+\)*"
       fi
     elif [[ "${info}" == '--all-branch-remote' ]]; then
       if __yxct_valid_repo; then
         git -C "${repo_path}" branch --show-current
-        git -C "${repo_path}" branch -r | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
+        git -C "${repo_path}" --no-optional-locks "${YXCT_GIT_NOCOLOR_PARAMS[@]}" --no-pager branch -r | grep -Ev "^\s*\*\s*.*$" | grep -Ev "^\s*[^->]*\s*->\s*[^->]*$" | grep -o "[^ ]\+\( \+[^ ]\+\)*"
       fi
     elif [[ "${info}" == '--all-branch' ]]; then
       if __yxct_valid_repo; then
         git -C "${repo_path}" branch --show-current
-        git -C "${repo_path}" branch -a | grep -E '.*' | grep -Ev "^\s*\*\s*.*$"
+        git -C "${repo_path}" --no-optional-locks "${YXCT_GIT_NOCOLOR_PARAMS[@]}" --no-pager branch -a | sed s/^\*/''/g | grep -Ev "^\s*[^->]*\s*->\s*[^->]*$" | grep -o "[^ ]\+\( \+[^ ]\+\)*"
       fi
     else
       result=1
