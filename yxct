@@ -3251,6 +3251,17 @@ cat <<EOF
 
   Other options
   Use '${CMD} uninstall --help' show this help information
+
+  The following environment are available on setup-script:
+
+  YXCT
+  Current running '${CMD}' command path. It is often used to
+  invoke the ${CMD} to install a sub-command or dependency packag
+  in setup-script.
+
+  YXLOGGER_DEFAULT_LEVEL
+  Current command output level. The specific level can be one of
+  'silent', 'fatal', 'error', 'verbose', or a number greater than 0.
 EOF
 }
 
