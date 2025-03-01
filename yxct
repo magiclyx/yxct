@@ -1293,7 +1293,7 @@ function yxct_git_repo()
         # git pull
         local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
         local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
-        if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+        if [ -n "${git_fetch_head}" ]  &&  [[ "${git_head}" != "${git_fetch_head}" ]]; then
           yxct_msg "begin update..."
           #pull the repo
           if ! yxct_verbcmd "git -C ${repo_path} pull"; then
@@ -1367,7 +1367,7 @@ function yxct_git_repo()
       # check whether need update
       local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
       local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
-      if [[ "${git_head}" != "${git_fetch_head}" ]]; then
+      if [[ -n "${git_fetch_head}" ]] &&  [[ "${git_head}" != "${git_fetch_head}" ]]; then
 
         # clean the repo
         __yxct_clean_repo "${git_branch}"
