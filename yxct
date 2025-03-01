@@ -1185,8 +1185,8 @@ function yxct_git_repo()
       
       # clean the repo
       # yxct_verbcmd "git -C ${repo_path} reset --hard origin/main"
-      yxct_verbcmd "git -C ${repo_path} reset --hard HEAD --"
-      yxct_verbcmd "git -C ${repo_path} clean -fd"
+      yxct_verbcmd --quiet "git -C ${repo_path} reset --hard HEAD --"
+      yxct_verbcmd --quiet "git -C ${repo_path} clean -fd"
 
 
       # check clean result
@@ -1205,14 +1205,14 @@ function yxct_git_repo()
     if [ -n "${branch}" ]; then
       # 如果给定新分支，切换到新分支
       if [ -z "${current_branch}" ]  ||  [[ "${branch}" != 'current_branch' ]]; then
-        yxct_verbcmd "git -C ${repo_path} checkout ${branch}" 2> /dev/null
+        yxct_verbcmd --quiet "git -C ${repo_path} checkout ${branch}" 2> /dev/null
       fi
     else
       # 如果没有给定新分支，但当前分支是分离状态, 切换到默认分支
       if [ -z "${current_branch}" ]; then
         local default_branch=$(__yxct_default_branch)
         if [ -n "${default_branch}" ]; then
-          yxct_verbcmd "git -C ${repo_path} checkout ${default_branch}"
+          yxct_verbcmd --quiet "git -C ${repo_path} checkout ${default_branch}"
         fi
       fi
     fi
@@ -1279,7 +1279,7 @@ function yxct_git_repo()
 
       # git fetch
       yxct_msg "check update info..."
-      yxct_verbcmd "git -C ${repo_path} fetch"
+      yxct_verbcmd "git -C ${repo_path} fetch" 2>/dev/null
 
       # clean the repo
       yxct_msg "clean local repo directory..."
@@ -1292,7 +1292,7 @@ function yxct_git_repo()
 
         # git pull
         local git_head=$(git -C "${repo_path}" log HEAD | head -n 1 | awk '{print $2}')
-        local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD | head -n 1 | awk '{print $2}')
+        local git_fetch_head=$(git -C "${repo_path}" log FETCH_HEAD 2>/dev/null | head -n 1 | awk '{print $2}')
         if [ -n "${git_fetch_head}" ]  &&  [[ "${git_head}" != "${git_fetch_head}" ]]; then
           yxct_msg "begin update..."
           #pull the repo
@@ -1339,7 +1339,7 @@ function yxct_git_repo()
         local ori_detachedHead=$(git -C "${repo_path}" config advice.detachedHead)
         yxct_verbcmd "git -C ${repo_path} config advice.detachedHead false"
         # 因为这里允许错误，所以将错误信息扔掉，避免没必要的报错
-        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_hash} ${file_params}" 2>/dev/null
+        yxct_verbcmd --quiet "git -C ${repo_path} ${work_tree_params} checkout ${git_hash} ${file_params}" 2>/dev/null
         result=$?
         if [ -n "${ori_detachedHead}" ]; then
           if [[ "${ori_detachedHead}" != 'false' ]]; then
@@ -1350,7 +1350,7 @@ function yxct_git_repo()
         fi
       elif [ -n "${git_branch}" ]; then
         # 因为这里允许错误，所以将错误信息扔掉，避免没必要的报错
-        yxct_verbcmd "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}" 2>/dev/null
+        yxct_verbcmd --quiet "git -C ${repo_path} ${work_tree_params} checkout ${git_branch} ${file_params}" 2>/dev/null
         result=$?
       fi
     fi
