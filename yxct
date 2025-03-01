@@ -280,17 +280,42 @@ function yxct_verbcmd()
       yx_verbcmd $@
     fi
   else
-    if ${TEST_ONLY}; then
+
+    local quiet=false
+    local test_once=false
+    while true; do
+    
+      if ! [[ $1 =~ ^-.*$ ]]; then
+        break
+      fi
+    
+      if [[ $1 == '--test' ]]; then
+        test_once='TEST'
+      elif [[ $1 == '--quiet' ]]; then
+        quiet=true
+      else
+        yx_fatal "unknown option: $1"
+      fi
+    
+      shift
+    done
+
+
+
+    if ${TEST_ONLY} || ${test_once}; then
       yxct_verbose "Test-only:$*"
       return
     else
       yxct_verbose "$*"
     fi
 
-    $@
+    local cmd_output=/dev/stdout
+    if ${quiet}; then
+      cmd_output=/dev/null
+    fi
+
+    eval "$*" > "${cmd_output}"
   fi
-
-
 }
 
 function yxct_err()
