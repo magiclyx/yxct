@@ -3743,13 +3743,23 @@ EOF
 function yxct_usage_pack()
 {
 cat <<EOF
-  usage: ${CMD} pack <--repo-path path> <--pack-path path> [--pass xxx | --pass] [--force|--info-level]
+  usage: ${CMD} pack [command] <--repo-path path> <--pack-path path> [--command command] [--pass xxx | --pass] [--force|--info-level]
   Create a ${CMD} installation pack from script.
 
   usage: ${CMD} unpack <--repo-path path> <--pack-path path> [--pass xxx | --pass] [--force|--info-level]
   Extra script from ${CMD} installation pack
 
   The following option are availiable:
+  
+  --pack-path             The path of ${CMD} package
+
+  --repo-path             The repo path 'unpack from' or 'pack to'
+
+  --command               Use for 'pack' command. When not provide a '--repo-path' parameter, ${CMD} will try to
+                          download it from network or search from ${CMD} cache directory (${CMD} cache directory
+                          defined in 'YXCT_CACHE_PATH' environment. If 'YXCT_CACHE_PATH' environment not exist,
+                          ${CMD} will use default cache directory.)
+
   --pass | --pass <xxx>   It's meand the installation package requires a password, and if no password
                           parameter is provided, ${CMD} will ask for a password during
                           the packing/unpacking process
@@ -5502,6 +5512,12 @@ function cmd_pack()
     shift
   fi
 
+  local command=
+  if ! [[ "$1" =~ ^-.*$ ]]; then
+    command=$1
+    shift
+  fi
+
   # if ! [[ $1 =~ ^-.*$ ]]; then
   #   command=$1
   #   shift
@@ -5511,6 +5527,10 @@ function cmd_pack()
   while [ $# -gt 0 ]; do
 
     case $1 in
+
+      --command )
+        cursor=$1
+      ;;
 
       --repo-path )
         cursor=$1
@@ -5551,7 +5571,9 @@ function cmd_pack()
           cursor=
         fi
         if [ -n "${cursor}" ]; then
-          if [[ "${cursor}" == '--repo-path' ]]; then
+          if [[ "${cursor}" == '--command' ]]; then
+            command=$(echo "${command} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
+          elif [[ "${cursor}" == '--repo-path' ]]; then
             repo_path=$(echo "${repo_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
           elif [[ "${cursor}" == '--pack-path' ]]; then
             pack_path=$(echo "${pack_path} $1" | grep -o "[^ ]\+\( \+[^ ]\+\)*")
@@ -5584,9 +5606,59 @@ function cmd_pack()
 
     if [[ "${option}" == 'PACK' ]]; then
       
-
       if [ -z "${repo_path}" ]; then
-        yxct_fatal "repo path is empty. Use '${CMD} pack --help' to show help information"
+
+        # 如果未指定 repo_path 目录, 尝试从网络下载或在缓中搜索
+        if [ -n "${command}" ]; then
+
+          # 确定缓存目录
+          # 这里使用 yxct 默认的 cache 目录
+          local cache_path=
+          if [ "${command}" == "${CMD}" ]; then
+            # 如果command是yxct本身，则需要将 cache_path 指向一个临时目录。 避免安装过程中被删除.
+            cache_path=$(mktemp -d)
+          else
+            # 获取cache, cache 路径可以为空或不存在
+            # 因为后面 如果未指定'--cache'参数，可以从网络拉取
+            if [ -n "${YXCT_CACHE_PATH}" ]; then
+              # 如果提供了环境变量， 从环境变量中读取 cache 路径
+              cache_path="${YXCT_CACHE_PATH}"
+            else
+              # 如果没提供环境变量，使用默认cache路径
+              cache_path="$(yxct_get_default_cache_path)"
+            fi
+          fi
+
+          # 尝试更新 indexs library
+          if ! update_index_if_need; then
+            yxct_err 'failed to update index'
+          fi
+
+          local checkout_result=
+          checkout_a_cache "${command}" --version LATEST --cache-dir "${cache_path}"
+          checkout_result=$?
+          if [[ "${checkout_result}" != '0' ]]; then
+            if [[ "${checkout_result}" == '1' ]]; then
+              # 正常情况, 仓库不在 indexs library 和 index.conf 控制下
+              yxct_fatal "unknown command '${command}'"
+            elif [[ "${checkout_result}" == '2' ]]; then
+              yxct_fatal "failed to update ${command}'s cache to version:${version}"
+            elif [[ "${checkout_result}" == '3' ]]; then
+              yxct_fatal "failed to checkout ${command}'s cache to version:${version}"
+            elif [[ "${checkout_result}" == '4' ]]; then
+              yxct_fatal "unknown version:${version} of command:${command}"
+            fi
+          fi
+
+          #重新指向 repo_path
+          repo_path=$(search_in_cache "${command}" "${cache_path}")
+          if [ -z "${repo_path}" ]; then
+            yxct_fatal "failed to checkout command : ${command}"
+          fi
+        else
+          yxct_fatal "repo path is empty. Use '${CMD} pack --help' to show help information"
+        fi
+
       fi
 
       if [ -z "${pack_path}" ]; then
