@@ -218,35 +218,32 @@ function yxct_os_type()
 function yxct_verbose()
 {
   if ${YXCT_USEYXLIB}; then
-    yx_verb $@
+    yx_verb "$@"
   else
 
-    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_VERBOSE}" )); then
-      return
+    # 本地实现不支持yxlogger 中的参数
+    local msg=$(printf -- "$@")
+    if [[ "${YXCT_DEFAULT_LEVEL}" -ge "${YXCT_LEVEL_VERBOSE}" ]]; then
+      (>&1 echo "${msg}")
     fi
 
-    (>&1 echo "$1")
-
   fi
-
-
 }
 
 function yxct_msg()
 {
   if ${YXCT_USEYXLIB}; then
-    yx_msg $@
+    yx_msg "$@"
   else
 
-    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_INFO}" )); then
-      return
+    # 本地实现不支持yxlogger 中的参数
+    local msg=$(printf -- "$@")
+
+    if [[ "${YXCT_DEFAULT_LEVEL}" -ge "${YXCT_LEVEL_INFO}" ]]; then
+      (>&1 echo "${msg}")
     fi
 
-    echo $*
-
   fi
-
-
 }
 
 function yxct_fatal()
@@ -254,21 +251,22 @@ function yxct_fatal()
   YXCT_NESTED_FLAG=$((YXCT_NESTED_FLAG-1))
 
   if ${YXCT_USEYXLIB}; then
-    yx_fatal $@
+    yx_fatal "$@"
   else
 
-    if (( "${YXCT_DEFAULT_LEVEL}" >= "${YXCT_LEVEL_FATAL}" )); then
+    # 本地实现不支持yxlogger 中的参数
+    local msg=$(printf -- "$@") 
+
+    if [[ "${YXCT_DEFAULT_LEVEL}" -ge "${YXCT_LEVEL_FATAL}" ]]; then
       local red=$(tput setaf 1);
       local reset=$(tput sgr0);
       
-      (>&2 echo "${red}Fatal:${1}${reset}");
+      (>&2 echo "${red}Fatal: ${msg}${reset}");
     fi
 
     exit 1;
 
   fi
-
-
 }
 
 
@@ -281,6 +279,8 @@ function yxct_verbcmd()
       yx_verbcmd $@
     fi
   else
+
+    # 本地实现不支持yxlogger 中的参数
 
     local quiet=false
     local test_once=false
@@ -295,7 +295,7 @@ function yxct_verbcmd()
       elif [[ $1 == '--quiet' ]]; then
         quiet=true
       else
-        yx_fatal "unknown option: $1"
+        yxct_fatal "unknown option: $1"
       fi
     
       shift
@@ -322,16 +322,19 @@ function yxct_verbcmd()
 function yxct_err()
 {
   if ${YXCT_USEYXLIB}; then
-    yx_err $@
+    yx_err "$@"
   else
-    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_ERROR}" )); then
-      return
+
+    # 本地实现不支持yxlogger 中的参数
+    local msg=$(printf -- "$@") 
+
+    if [[ "${YXCT_DEFAULT_LEVEL}" -ge "${YXCT_LEVEL_ERROR}" ]]; then
+      local magenta=$(tput setaf 5);
+      local reset=$(tput sgr0);
+
+      (>&2 echo "${magenta}${msg}${reset}")
     fi
 
-    local magenta=$(tput setaf 5);
-    local reset=$(tput sgr0);
-
-    (>&2 echo "${magenta}${1}${reset}")
   fi
 
 }
@@ -339,16 +342,19 @@ function yxct_err()
 function yxct_warn()
 {
   if ${YXCT_USEYXLIB}; then
-    yx_warn $@
+    yx_warn "$@"
   else
-    if (( "${YXCT_DEFAULT_LEVEL}" < "${YXCT_LEVEL_WARN}" )); then
-      return
+
+    # 本地实现不支持yxlogger 中的参数
+    local msg=$(printf -- "$@") 
+
+    if [[ "${YXCT_DEFAULT_LEVEL}" -ge "${YXCT_LEVEL_WARN}" ]]; then
+      local yellow=$(tput setaf 3);
+      local reset=$(tput sgr0);
+
+      (>&2 echo "${yellow}${1}${reset}")
     fi
 
-    local yellow=$(tput setaf 3);
-    local reset=$(tput sgr0);
-
-    (>&2 echo "${yellow}${1}${reset}")
   fi
 }
 
