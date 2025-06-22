@@ -1219,7 +1219,7 @@ function yxct_git_repo()
       if [ -z "${current_branch}" ]; then
         local default_branch=$(__yxct_default_branch)
         if [ -n "${default_branch}" ]; then
-          yxct_verbcmd --quiet "git -C ${repo_path} checkout ${default_branch}"
+          yxct_verbcmd --quiet "git -C ${repo_path} checkout ${default_branch} 2> /dev/null"
         fi
       fi
     fi
