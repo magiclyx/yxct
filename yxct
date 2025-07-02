@@ -1023,7 +1023,7 @@ function yxct_git_repo()
   if ! [[ "$1" =~ ^-.*$ ]]; then
     if yxct_strcontains "$1" 'checkout' --ignorecase; then
       operation='CHECKOUT'
-      if [ -n "$2" ] && [[ "$2" =~ ^[0-9a-zA-z]{7,40}$ ]]; then
+      if [ -n "$2" ] && [[ "$2" =~ ^[0-9a-zA-Z]{7,40}$ ]]; then
         git_hash=$2
         shift
       fi
