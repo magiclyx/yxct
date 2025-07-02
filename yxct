@@ -41,7 +41,7 @@ DEFAULT_BIN_PATH="${USR_LOCAL_BIN_PATH}"
 
 
 # index about
-YXCT_INDEX_DEFAULT_GIT_ADDR='git@github.com:magiclyx/yxctindex.git'
+YXCT_INDEX_DEFAULT_GIT_ADDR='https://github.com/magiclyx/yxctindex.git'
 YXCT_INDEX_DEFAULT_GIT_BRANCH='main'
 YXCT_INDEX_DEFAULT_SCHEDULE=7day
 
