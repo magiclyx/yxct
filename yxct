@@ -4069,10 +4069,26 @@ function cmd_install()
           if ! [ -d "${cmd_cache_path}" ]; then
             yxct_fatal "failed to create dir:${cmd_cache_path}"
           fi
-          # copy
-          if ! yxct_verbcmd "${CP} ${script_path} ${cmd_cache_path}"; then
-            yxct_fatal "failed to copy command to cache path"
+
+
+          local script_file_name=$(basename "${script_path}")
+          if [[ "${script_file_name}" =~ ^\.yxct\.setup\.(sh|py|rb) ]]; then
+            # 如果文件是安装脚本 => '.yxct.setup.xx'
+
+            # 将 'script_path' 指向上层目录
+            script_path=$(dirname "${script_path}")
+
+            # copy 整个目录到cache 目录下
+            if ! yxct_verbcmd "${CP} -R ${script_path}/. ${cmd_cache_path}"; then
+              yxct_fatal "failed to copy script dir to cache path"
+            fi
+          else
+            # copy 单个文到'cache'目录下
+            if ! yxct_verbcmd "${CP} ${script_path} ${cmd_cache_path}"; then
+              yxct_fatal "failed to copy command to cache path"
+            fi
           fi
+
 
           # 新的 script_path
           script_path="${cmd_cache_path}"
