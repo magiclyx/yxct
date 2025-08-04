@@ -5845,7 +5845,7 @@ function cmd_pack()
       fi
 
       if ! yxct_verbcmd "${CP} ${params} ${target_path} ${repo_path}"; then
-        yxct_fatal "failed to copy file to ${pack_file}"
+        yxct_fatal "failed to copy file to ${repo_path}"
       else
         if [[ "${YXCT_NESTED_FLAG}" == 1 ]]; then
           yxct_msg "unpack success"
